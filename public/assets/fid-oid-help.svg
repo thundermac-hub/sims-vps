@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ef4444"/>
+      <stop offset="1" stop-color="#f97316"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="#ffffff"/>
+  <rect x="60" y="60" rx="16" ry="16" width="1080" height="140" fill="url(#g)"/>
+  <text x="100" y="120" font-family="Arial, Helvetica, sans-serif" font-size="36" fill="#fff" font-weight="700">Finding your FID & OID</text>
+  <text x="100" y="160" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#fff" opacity="0.95">Example reference guide (replace with your own screenshot)</text>
+
+  <g>
+    <rect x="80" y="240" width="1040" height="460" rx="12" ry="12" fill="#f8fafc" stroke="#e5e7eb"/>
+    <rect x="110" y="280" width="980" height="60" rx="10" ry="10" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="120" y="320" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#111827">FID: 123456 (Store ID / Franchise ID)</text>
+
+    <rect x="110" y="370" width="980" height="60" rx="10" ry="10" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="120" y="410" font-family="Arial, Helvetica, sans-serif" font-size="20" fill="#111827">OID: 987654 (Outlet ID / Location ID)</text>
+
+    <text x="110" y="470" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="#334155">Where to look</text>
+    <circle cx="120" cy="500" r="6" fill="#ef4444"/>
+    <text x="140" y="506" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#475569">Backoffice dashboard &gt; Outlets page &gt; details drawer</text>
+    <circle cx="120" cy="536" r="6" fill="#ef4444"/>
+    <text x="140" y="542" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#475569">Invoices/emails referencing your merchant and outlet identifiers</text>
+    <circle cx="120" cy="572" r="6" fill="#ef4444"/>
+    <text x="140" y="578" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#475569">Ask your Success Manager to confirm</text>
+  </g>
+
+  <text x="60" y="740" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#94a3b8">This is a placeholder illustration. Replace this file with a real screenshot when available.</text>
+</svg>
+
