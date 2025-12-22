@@ -3,11 +3,13 @@ import styles from '../tickets/tickets.module.css';
 import MerchantsClient from './MerchantsClient';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessSupportPages } from '@/lib/branding';
-import { fetchFranchiseList, type FranchiseSummary } from '@/lib/franchise';
+import { fetchAllFranchises, type FranchiseSummary } from '@/lib/franchise';
 
 export const dynamic = 'force-dynamic';
 
-const PER_PAGE = 25;
+const PAGE_SIZE = 25;
+const API_PAGE_SIZE = 200;
+const MAX_API_PAGES = 50;
 
 const parsePage = (value: string | string[] | undefined): number => {
   if (Array.isArray(value)) {
@@ -29,16 +31,17 @@ const fidSortValue = (fid: string | null): number => {
   return Number.isNaN(parsed) ? -1 : parsed;
 };
 
-const sortFranchises = (franchises: FranchiseSummary[]): FranchiseSummary[] =>
-  [...franchises].sort((a, b) => {
-    const diff = fidSortValue(b.fid) - fidSortValue(a.fid);
+const sortFranchises = (franchises: FranchiseSummary[]): FranchiseSummary[] => {
+  const indexed = franchises.map((franchise, index) => ({ franchise, index }));
+  indexed.sort((a, b) => {
+    const diff = fidSortValue(b.franchise.fid) - fidSortValue(a.franchise.fid);
     if (diff !== 0) {
       return diff;
     }
-    const nameA = a.name ?? '';
-    const nameB = b.name ?? '';
-    return nameA.localeCompare(nameB, 'en', { sensitivity: 'base' });
+    return b.index - a.index;
   });
+  return indexed.map((entry) => entry.franchise);
+};
 
 export default async function MerchantsPage({
   searchParams,
@@ -55,31 +58,24 @@ export default async function MerchantsPage({
 
   let dataLoadFailed = false;
   let franchises: FranchiseSummary[] = [];
-  let fetchedCount = 0;
-  let totalPages: number | null = null;
+  let totalPages = 1;
   let currentPage = page;
-  let perPage = PER_PAGE;
 
   try {
-    const response = await fetchFranchiseList(page, PER_PAGE);
-    fetchedCount = response.franchises.length;
-    franchises = sortFranchises(response.franchises.filter((franchise) => franchise.outlets.length > 0));
-    totalPages = response.totalPages;
-    currentPage = response.currentPage;
-    perPage = response.perPage || PER_PAGE;
+    const response = await fetchAllFranchises(API_PAGE_SIZE, MAX_API_PAGES);
+    const filtered = response.filter((franchise) => franchise.outlets.length > 0);
+    const sorted = sortFranchises(filtered);
+    totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+    currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    franchises = sorted.slice(startIndex, startIndex + PAGE_SIZE);
   } catch (error) {
     dataLoadFailed = true;
     console.error('Failed to load franchise list', error);
   }
 
   const previousPage = currentPage > 1 ? currentPage - 1 : null;
-  const nextPage = totalPages
-    ? currentPage < totalPages
-      ? currentPage + 1
-      : null
-    : fetchedCount === perPage
-      ? currentPage + 1
-      : null;
+  const nextPage = currentPage < totalPages ? currentPage + 1 : null;
 
   return (
     <div className={styles.page}>

@@ -378,3 +378,27 @@ export async function fetchFranchiseList(page: number, perPage: number): Promise
 
   return doFetch(false);
 }
+
+export async function fetchAllFranchises(perPage: number, maxPages = 50): Promise<FranchiseSummary[]> {
+  const safePerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : 100;
+  const safeMaxPages = Number.isFinite(maxPages) && maxPages > 0 ? Math.floor(maxPages) : 50;
+  const franchises: FranchiseSummary[] = [];
+  let expectedPageSize = safePerPage;
+
+  for (let page = 1; page <= safeMaxPages; page += 1) {
+    const response = await fetchFranchiseList(page, safePerPage);
+    expectedPageSize = response.perPage || expectedPageSize;
+    if (response.franchises.length === 0) {
+      break;
+    }
+    franchises.push(...response.franchises);
+    if (response.totalPages && page >= response.totalPages) {
+      break;
+    }
+    if (response.franchises.length < expectedPageSize) {
+      break;
+    }
+  }
+
+  return franchises;
+}
