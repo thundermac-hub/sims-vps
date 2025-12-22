@@ -35,6 +35,23 @@ BEGIN
     DEALLOCATE PREPARE s;
   END IF;
 END//
+
+DROP PROCEDURE IF EXISTS add_column_if_missing//
+CREATE PROCEDURE add_column_if_missing(IN tbl VARCHAR(64), IN col VARCHAR(64), IN definition TEXT)
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = tbl
+      AND column_name = col
+  ) THEN
+    SET @stmt = CONCAT('ALTER TABLE ', tbl, ' ADD COLUMN ', col, ' ', definition);
+    PREPARE s FROM @stmt;
+    EXECUTE s;
+    DEALLOCATE PREPARE s;
+  END IF;
+END//
 DELIMITER ;
 
 CREATE TABLE IF NOT EXISTS users (
@@ -168,6 +185,7 @@ CREATE TABLE IF NOT EXISTS franchise_cache (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   fid VARCHAR(32),
   franchise_name VARCHAR(255),
+  franchise_json JSON,
   outlets_json JSON NOT NULL,
   outlet_count INT NOT NULL DEFAULT 0,
   import_index INT NOT NULL,
@@ -178,8 +196,10 @@ CREATE TABLE IF NOT EXISTS franchise_cache (
     FOREIGN KEY (job_id) REFERENCES franchise_import_jobs(id) ON DELETE SET NULL
 );
 
+CALL add_column_if_missing('franchise_cache', 'franchise_json', 'JSON');
 CALL create_index_if_missing('franchise_cache', 'franchise_cache_active_idx', 'is_active, import_index');
 CALL create_index_if_missing('franchise_cache', 'franchise_cache_fid_idx', 'fid');
 
 DROP PROCEDURE IF EXISTS create_index_if_missing;
 DROP PROCEDURE IF EXISTS create_unique_index_if_missing;
+DROP PROCEDURE IF EXISTS add_column_if_missing;

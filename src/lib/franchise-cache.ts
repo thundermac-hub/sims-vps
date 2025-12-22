@@ -1,5 +1,10 @@
 import { getSupabaseAdminClient } from './db';
-import { fetchFranchiseList, type FranchiseOutletSummary, type FranchiseSummary } from './franchise';
+import {
+  fetchFranchiseListRaw,
+  toFranchiseSummary,
+  type FranchiseOutletSummary,
+  type FranchiseSummary,
+} from './franchise';
 
 export type FranchiseImportStatus = 'running' | 'completed' | 'failed';
 export type FranchiseImportTrigger = 'cron' | 'manual';
@@ -213,37 +218,41 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
 
   try {
     while (true) {
-      const response = await fetchFranchiseList(page, safePageSize);
-      if (page === 1 && response.franchises.length === 0 && response.totalCount === null) {
+      const response = await fetchFranchiseListRaw(page, safePageSize);
+      if (page === 1 && response.rows.length === 0 && response.totalCount === null) {
         throw new Error('Franchise API returned no data.');
       }
-      if (response.franchises.length > 0) {
+      if (response.rows.length > 0) {
         receivedAnyRows = true;
       }
       if (!totalCountSet && typeof response.totalCount === 'number') {
         totalCountSet = true;
         await supabase.from('franchise_import_jobs').update({ total_count: response.totalCount }).eq('id', jobId);
       }
-      const filtered = response.franchises.filter((franchise) => franchise.outlets.length > 0);
-      if (filtered.length > 0) {
-        const rows = filtered.map((franchise) => ({
-          fid: franchise.fid,
-          franchise_name: franchise.name,
-          outlets_json: JSON.stringify(franchise.outlets),
-          outlet_count: franchise.outlets.length,
-          import_index: importIndex++,
-          job_id: jobId,
-          is_active: 0,
-        }));
-        await supabase.from('franchise_cache').insert(rows);
-        processedCount += rows.length;
+      if (response.rows.length > 0) {
+        const cacheRows = response.rows.map((franchise) => {
+          const summary = toFranchiseSummary(franchise) ?? { fid: null, name: null, outlets: [] };
+          const franchiseJson = JSON.stringify(franchise ?? null) ?? 'null';
+          return {
+            fid: summary.fid,
+            franchise_name: summary.name,
+            outlets_json: JSON.stringify(summary.outlets),
+            franchise_json: franchiseJson,
+            outlet_count: summary.outlets.length,
+            import_index: importIndex++,
+            job_id: jobId,
+            is_active: 0,
+          };
+        });
+        await supabase.from('franchise_cache').insert(cacheRows);
+        processedCount += cacheRows.length;
         await supabase.from('franchise_import_jobs').update({ processed_count: processedCount }).eq('id', jobId);
       }
 
       if (response.totalPages && page >= response.totalPages) {
         break;
       }
-      if (response.franchises.length === 0 || response.franchises.length < response.perPage) {
+      if (response.rows.length === 0 || response.rows.length < response.perPage) {
         break;
       }
       if (page >= MAX_IMPORT_PAGES) {

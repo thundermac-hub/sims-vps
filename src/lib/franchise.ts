@@ -33,6 +33,14 @@ export type FranchiseListResult = {
   totalPages: number | null;
 };
 
+export type FranchiseListRawResult = {
+  rows: unknown[];
+  currentPage: number;
+  perPage: number;
+  totalCount: number | null;
+  totalPages: number | null;
+};
+
 let cachedToken: CachedToken | null = null;
 
 function hasValidToken(): boolean {
@@ -252,7 +260,7 @@ const normalizeOutlets = (raw: unknown): FranchiseOutletSummary[] => {
   return [];
 };
 
-const normalizeFranchise = (raw: unknown): FranchiseSummary | null => {
+export const toFranchiseSummary = (raw: unknown): FranchiseSummary | null => {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
@@ -287,15 +295,42 @@ const extractFranchiseList = (payload: unknown): { rows: unknown[]; meta: Record
   return { rows: [], meta: null };
 };
 
-export async function fetchFranchiseList(page: number, perPage: number): Promise<FranchiseListResult> {
+const parseFranchiseMeta = (
+  meta: Record<string, unknown> | null,
+  safePage: number,
+  safePerPage: number,
+): Omit<FranchiseListRawResult, 'rows'> => {
+  const totalCount =
+    (meta && franchiseNumber(meta.total)) ??
+    (meta && franchiseNumber(meta.total_count)) ??
+    (meta && franchiseNumber(meta.count)) ??
+    null;
+  const perPageFromMeta = (meta && franchiseNumber(meta.per_page)) ?? safePerPage;
+  const currentPage =
+    (meta && franchiseNumber(meta.current_page)) ?? (meta && franchiseNumber(meta.page)) ?? safePage;
+  const totalPages =
+    (meta && franchiseNumber(meta.last_page)) ??
+    (meta && franchiseNumber(meta.total_pages)) ??
+    (meta && franchiseNumber(meta.totalPages)) ??
+    (totalCount ? Math.max(1, Math.ceil(totalCount / perPageFromMeta)) : null);
+
+  return {
+    currentPage,
+    perPage: perPageFromMeta,
+    totalCount,
+    totalPages,
+  };
+};
+
+export async function fetchFranchiseListRaw(page: number, perPage: number): Promise<FranchiseListRawResult> {
   const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
   const safePerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : 25;
 
-  const doFetch = async (retrying = false): Promise<FranchiseListResult> => {
+  const doFetch = async (retrying = false): Promise<FranchiseListRawResult> => {
     const token = await fetchAuthToken();
     if (!token) {
       return {
-        franchises: [],
+        rows: [],
         currentPage: safePage,
         perPage: safePerPage,
         totalCount: null,
@@ -327,7 +362,7 @@ export async function fetchFranchiseList(page: number, perPage: number): Promise
       if (!response.ok) {
         console.warn('Franchise list lookup failed', response.status, response.statusText);
         return {
-          franchises: [],
+          rows: [],
           currentPage: safePage,
           perPage: safePerPage,
           totalCount: null,
@@ -337,37 +372,12 @@ export async function fetchFranchiseList(page: number, perPage: number): Promise
 
       const payload = (await response.json()) as unknown;
       const { rows, meta } = extractFranchiseList(payload);
-      const franchises = rows
-        .map(normalizeFranchise)
-        .filter((entry): entry is FranchiseSummary => Boolean(entry));
-
-      const totalCount =
-        (meta && franchiseNumber(meta.total)) ??
-        (meta && franchiseNumber(meta.total_count)) ??
-        (meta && franchiseNumber(meta.count)) ??
-        null;
-      const perPageFromMeta = (meta && franchiseNumber(meta.per_page)) ?? safePerPage;
-      const currentPage =
-        (meta && franchiseNumber(meta.current_page)) ??
-        (meta && franchiseNumber(meta.page)) ??
-        safePage;
-      const totalPages =
-        (meta && franchiseNumber(meta.last_page)) ??
-        (meta && franchiseNumber(meta.total_pages)) ??
-        (meta && franchiseNumber(meta.totalPages)) ??
-        (totalCount ? Math.max(1, Math.ceil(totalCount / perPageFromMeta)) : null);
-
-      return {
-        franchises,
-        currentPage,
-        perPage: perPageFromMeta,
-        totalCount,
-        totalPages,
-      };
+      const metaResult = parseFranchiseMeta(meta, safePage, safePerPage);
+      return { rows, ...metaResult };
     } catch (error) {
       console.error('Error fetching franchise list', error);
       return {
-        franchises: [],
+        rows: [],
         currentPage: safePage,
         perPage: safePerPage,
         totalCount: null,
@@ -377,6 +387,15 @@ export async function fetchFranchiseList(page: number, perPage: number): Promise
   };
 
   return doFetch(false);
+}
+
+export async function fetchFranchiseList(page: number, perPage: number): Promise<FranchiseListResult> {
+  const { rows, ...meta } = await fetchFranchiseListRaw(page, perPage);
+  const franchises = rows.map(toFranchiseSummary).filter((entry): entry is FranchiseSummary => Boolean(entry));
+  return {
+    franchises,
+    ...meta,
+  };
 }
 
 export async function fetchAllFranchises(perPage: number, maxPages = 50): Promise<FranchiseSummary[]> {
