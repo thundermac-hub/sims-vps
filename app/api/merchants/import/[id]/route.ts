@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessSupportPages } from '@/lib/branding';
 import { getFranchiseImportJob } from '@/lib/franchise-cache';
@@ -8,13 +8,14 @@ export const dynamic = 'force-dynamic';
 
 type Params = { id: string };
 
-export async function GET(_request: Request, context: { params: Params }) {
+export async function GET(_request: NextRequest, context: { params: Promise<Params> }) {
   const authUser = await getAuthenticatedUser();
   if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const jobId = Number.parseInt(context.params.id, 10);
+  const params = await context.params;
+  const jobId = Number.parseInt(params.id, 10);
   if (!Number.isFinite(jobId)) {
     return NextResponse.json({ error: 'Invalid job id.' }, { status: 400 });
   }
