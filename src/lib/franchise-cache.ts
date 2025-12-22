@@ -124,7 +124,8 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
     throw error;
   }
 
-  const franchises = (data ?? []).map((row) => ({
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const franchises = rows.map((row) => ({
     fid: row.fid ?? null,
     name: row.franchise_name ?? null,
     outlets: parseOutletList(row.outlets_json),
