@@ -12,8 +12,6 @@ interface MerchantsClientProps {
   totalCount: number;
   page: number;
   totalPages: number | null;
-  previousPage: number | null;
-  nextPage: number | null;
   initialQuery?: string;
   dataUnavailable?: boolean;
 }
@@ -36,21 +34,46 @@ const formatFranchiseName = (name: string | null, fid: string | null): string =>
   return fid ? `Franchise ${fid}` : 'Unnamed franchise';
 };
 
+const normalizeDateInput = (value: string): string =>
+  value.replace(/([+-]\d{2})(\d{2})$/, (_match, hours, minutes) => `${hours}:${minutes}`);
+
+const parseDateTime = (value: string | null): Date | null => {
+  const cleaned = (value ?? '').trim();
+  if (!cleaned) {
+    return null;
+  }
+  const normalised = normalizeDateInput(cleaned);
+  const parsed = Date.parse(normalised);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return new Date(parsed);
+};
+
 const formatDetailValue = (value: string | null): string => {
   const cleaned = (value ?? '').trim();
   return cleaned || '-';
 };
 
 const formatDateTime = (value: string | null): string => {
-  const cleaned = (value ?? '').trim();
-  if (!cleaned) {
-    return '-';
+  const date = parseDateTime(value);
+  if (!date) {
+    const cleaned = (value ?? '').trim();
+    return cleaned || '-';
   }
-  const parsed = Date.parse(cleaned);
-  if (Number.isNaN(parsed)) {
-    return cleaned;
-  }
-  return new Date(parsed).toLocaleString();
+  const datePart = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
+  const timePart = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+    .format(date)
+    .toUpperCase();
+  return `${datePart} ${timePart}`;
 };
 
 const buildFranchiseLink = (fid: string | null): string | null => {
@@ -59,6 +82,14 @@ const buildFranchiseLink = (fid: string | null): string | null => {
     return null;
   }
   return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
+};
+
+const isOutletActive = (validUntil: string | null): boolean => {
+  const parsed = parseDateTime(validUntil);
+  if (!parsed) {
+    return true;
+  }
+  return parsed.getTime() >= Date.now();
 };
 
 const buildPageHref = (page: number, query: string): string => {
@@ -75,8 +106,6 @@ export default function MerchantsClient({
   totalCount,
   page,
   totalPages,
-  previousPage,
-  nextPage,
   initialQuery,
   dataUnavailable,
 }: MerchantsClientProps) {
@@ -113,6 +142,40 @@ export default function MerchantsClient({
     });
   }, [outletFranchises, trimmedQuery]);
 
+  const totalPagesSafe = totalPages ?? 1;
+  const paginationPages = useMemo(() => {
+    if (totalPagesSafe <= 1) {
+      return [page];
+    }
+    const windowSize = 2;
+    let start = Math.max(1, page - windowSize);
+    let end = Math.min(totalPagesSafe, page + windowSize);
+    if (page <= windowSize) {
+      end = Math.min(totalPagesSafe, 1 + windowSize * 2);
+    }
+    if (page + windowSize >= totalPagesSafe) {
+      start = Math.max(1, totalPagesSafe - windowSize * 2);
+    }
+    const pages: number[] = [];
+    for (let current = start; current <= end; current += 1) {
+      pages.push(current);
+    }
+    return pages;
+  }, [page, totalPagesSafe]);
+
+  const visibleOutletCount = useMemo(
+    () => filtered.reduce((total, franchise) => total + franchise.outlets.length, 0),
+    [filtered],
+  );
+  const activeOutletCount = useMemo(
+    () =>
+      filtered.reduce(
+        (total, franchise) => total + franchise.outlets.filter((outlet) => isOutletActive(outlet.validUntil ?? null)).length,
+        0,
+      ),
+    [filtered],
+  );
+
   const emptyMessage = dataUnavailable
     ? 'Unable to load franchise data. Please refresh and try again.'
     : trimmedQuery
@@ -121,7 +184,7 @@ export default function MerchantsClient({
         ? 'No cached franchise data yet. Run a manual import to load the latest list.'
         : 'No franchises with outlets were found on this page.';
 
-  const headerMeta = dataUnavailable ? 'Data unavailable' : `${totalCount} total franchises`;
+  const headerMeta = dataUnavailable ? 'Data unavailable' : `Page ${page} of ${totalPagesSafe}`;
 
   useEffect(() => {
     if (!importJob || importJob.status !== 'running') {
@@ -180,6 +243,7 @@ export default function MerchantsClient({
     importJob && typeof importJob.totalCount === 'number' && importJob.totalCount > 0
       ? Math.min(100, Math.round((importJob.processedCount / importJob.totalCount) * 100))
       : null;
+  const showImportModal = isStartingImport || importJob?.status === 'running';
 
   return (
     <>
@@ -233,6 +297,20 @@ export default function MerchantsClient({
           {importJob?.status === 'failed' && importJob.errorMessage ? (
             <p className={styles.importError}>{importJob.errorMessage}</p>
           ) : null}
+        </div>
+        <div className={styles.metricsGrid}>
+          <div className={styles.metricCard}>
+            <span className={styles.metricLabel}>Total Franchises</span>
+            <span className={styles.metricValue}>{totalCount}</span>
+          </div>
+          <div className={styles.metricCard}>
+            <span className={styles.metricLabel}>Outlets On Page</span>
+            <span className={styles.metricValue}>{visibleOutletCount}</span>
+          </div>
+          <div className={styles.metricCard}>
+            <span className={styles.metricLabel}>Active Outlets</span>
+            <span className={styles.metricValue}>{activeOutletCount}</span>
+          </div>
         </div>
       </div>
 
@@ -304,7 +382,7 @@ export default function MerchantsClient({
                                     target="_blank"
                                     rel="noreferrer"
                                   >
-                                    {franchiseLink}
+                                    Open in Cloud
                                   </a>
                                 ) : (
                                   <span className={styles.detailValue}>-</span>
@@ -337,7 +415,7 @@ export default function MerchantsClient({
                                           target="_blank"
                                           rel="noreferrer"
                                         >
-                                          {outlet.mapsUrl}
+                                          Open Map
                                         </a>
                                       ) : (
                                         <span className={styles.detailValue}>-</span>
@@ -377,11 +455,18 @@ export default function MerchantsClient({
         </div>
         <div className={ticketStyles.paginationBar}>
           <span className={ticketStyles.paginationInfo}>
-            Showing {filtered.length} of {outletFranchises.length} on this page - {totalCount} total
+            Showing {filtered.length} franchises on this page • {totalCount} total
           </span>
           <div className={ticketStyles.paginationControls}>
-            {previousPage ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(previousPage, query)}>
+            {page > 1 ? (
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(1, query)}>
+                First
+              </Link>
+            ) : (
+              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>First</span>
+            )}
+            {page > 1 ? (
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(page - 1, query)}>
                 Previous
               </Link>
             ) : (
@@ -389,20 +474,63 @@ export default function MerchantsClient({
                 Previous
               </span>
             )}
+            <div className={styles.paginationPages}>
+              {paginationPages.map((pageNumber) =>
+                pageNumber === page ? (
+                  <span
+                    key={`page-${pageNumber}`}
+                    className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonActive}`}
+                  >
+                    {pageNumber}
+                  </span>
+                ) : (
+                  <Link
+                    key={`page-${pageNumber}`}
+                    className={ticketStyles.paginationButton}
+                    href={buildPageHref(pageNumber, query)}
+                  >
+                    {pageNumber}
+                  </Link>
+                ),
+              )}
+            </div>
             <span className={ticketStyles.paginationPageIndicator}>
-              Page {page}
-              {totalPages ? ` of ${totalPages}` : ''}
+              Page {page} of {totalPagesSafe}
             </span>
-            {nextPage ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(nextPage, query)}>
+            {page < totalPagesSafe ? (
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(page + 1, query)}>
                 Next
               </Link>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Next</span>
             )}
+            {page < totalPagesSafe ? (
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(totalPagesSafe, query)}>
+                Last
+              </Link>
+            ) : (
+              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Last</span>
+            )}
           </div>
         </div>
       </section>
+
+      {showImportModal ? (
+        <div className={styles.importOverlay} role="status" aria-live="polite">
+          <div className={styles.importModal}>
+            <div className={styles.spinner} aria-hidden="true" />
+            <div className={styles.importModalText}>
+              <h3>Importing franchise data</h3>
+              <p>
+                {importJob?.status === 'running'
+                  ? `Processed ${importJob.processedCount} of ${importJob.totalCount ?? '...'}`
+                  : 'Starting import...'}
+              </p>
+              {progressPercent !== null ? <span>{progressPercent}% complete</span> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -57,9 +57,6 @@ export default async function MerchantsPage({
     console.error('Failed to load franchise list', error);
   }
 
-  const previousPage = currentPage > 1 ? currentPage - 1 : null;
-  const nextPage = currentPage < totalPages ? currentPage + 1 : null;
-
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
@@ -78,8 +75,6 @@ export default async function MerchantsPage({
         franchises={franchises}
         page={currentPage}
         totalPages={totalPages}
-        previousPage={previousPage}
-        nextPage={nextPage}
         totalCount={totalCount}
         initialQuery={initialQuery}
         dataUnavailable={dataLoadFailed}
