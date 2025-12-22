@@ -8,8 +8,8 @@ import { fetchAllFranchises, type FranchiseSummary } from '@/lib/franchise';
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
-const API_PAGE_SIZE = 200;
-const MAX_API_PAGES = 50;
+const API_PAGE_SIZE = 25;
+const MAX_API_PAGES = 4;
 
 const parsePage = (value: string | string[] | undefined): number => {
   if (Array.isArray(value)) {
