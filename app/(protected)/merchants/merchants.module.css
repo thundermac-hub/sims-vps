@@ -83,6 +83,73 @@
   white-space: nowrap;
 }
 
+.importBar {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.importButton {
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #fda4af;
+  background: #fff5f5;
+  color: #b91c1c;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.importButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.importStatus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.importLabel {
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.importPercent {
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.progressBar {
+  height: 8px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  overflow: hidden;
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  transition: width 0.2s ease;
+}
+
+.importError {
+  margin: 0;
+  font-size: 12px;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
 @media (max-width: 720px) {
   .franchiseSummary {
     padding: 12px;
@@ -95,5 +162,10 @@
   .outletItem {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .importButton {
+    width: 100%;
+    justify-content: center;
   }
 }

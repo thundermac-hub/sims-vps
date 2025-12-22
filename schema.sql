@@ -150,5 +150,36 @@ CREATE TABLE IF NOT EXISTS csat_responses (
 
 CALL create_unique_index_if_missing('csat_responses', 'csat_responses_token_id_idx', 'token_id');
 
+CREATE TABLE IF NOT EXISTS franchise_import_jobs (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  status ENUM('running', 'completed', 'failed') NOT NULL DEFAULT 'running',
+  import_trigger ENUM('cron', 'manual') NOT NULL DEFAULT 'manual',
+  requested_by VARCHAR(255),
+  total_count INT,
+  processed_count INT NOT NULL DEFAULT 0,
+  started_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  finished_at DATETIME(3),
+  error_message TEXT
+);
+
+CALL create_index_if_missing('franchise_import_jobs', 'franchise_import_jobs_status_idx', 'status, started_at');
+
+CREATE TABLE IF NOT EXISTS franchise_cache (
+  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  fid VARCHAR(32),
+  franchise_name VARCHAR(255),
+  outlets_json JSON NOT NULL,
+  outlet_count INT NOT NULL DEFAULT 0,
+  import_index INT NOT NULL,
+  job_id BIGINT,
+  is_active BOOLEAN NOT NULL DEFAULT FALSE,
+  imported_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  CONSTRAINT fk_franchise_cache_job_id
+    FOREIGN KEY (job_id) REFERENCES franchise_import_jobs(id) ON DELETE SET NULL
+);
+
+CALL create_index_if_missing('franchise_cache', 'franchise_cache_active_idx', 'is_active, import_index');
+CALL create_index_if_missing('franchise_cache', 'franchise_cache_fid_idx', 'fid');
+
 DROP PROCEDURE IF EXISTS create_index_if_missing;
 DROP PROCEDURE IF EXISTS create_unique_index_if_missing;

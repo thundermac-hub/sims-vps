@@ -36,3 +36,7 @@ CLICKUP_TEAM_ID=9005100321
 # Used to fetch franchise/outlet names for tickets based on FID/OID
 CLOUD_API_EMAIL=
 CLOUD_API_PASSWORD=
+
+# Franchise import cron secret (used by /api/cron/franchise-import)
+FRANCHISE_IMPORT_CRON_SECRET=
+# Example cron (server host): 15 0 * * * curl -H "x-cron-secret: $FRANCHISE_IMPORT_CRON_SECRET" -X POST http://localhost:3000/api/cron/franchise-import

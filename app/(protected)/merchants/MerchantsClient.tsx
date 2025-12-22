@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import ticketStyles from '../tickets/tickets.module.css';
 import styles from './merchants.module.css';
 import type { FranchiseSummary } from '@/lib/franchise';
 
 interface MerchantsClientProps {
   franchises: FranchiseSummary[];
+  totalCount: number;
   page: number;
   totalPages: number | null;
   previousPage: number | null;
@@ -45,6 +47,7 @@ const buildPageHref = (page: number, query: string): string => {
 
 export default function MerchantsClient({
   franchises,
+  totalCount,
   page,
   totalPages,
   previousPage,
@@ -52,8 +55,12 @@ export default function MerchantsClient({
   initialQuery,
   dataUnavailable,
 }: MerchantsClientProps) {
+  const router = useRouter();
   const [query, setQuery] = useState(initialQuery ?? '');
   const trimmedQuery = query.trim().toLowerCase();
+  const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isStartingImport, setIsStartingImport] = useState(false);
 
   const outletFranchises = useMemo(() => franchises.filter((franchise) => franchise.outlets.length > 0), [franchises]);
 
@@ -85,9 +92,69 @@ export default function MerchantsClient({
     ? 'Unable to load franchise data. Please refresh and try again.'
     : trimmedQuery
       ? 'No franchises match this search.'
-      : 'No franchises with outlets were found on this page.';
+      : totalCount === 0
+        ? 'No cached franchise data yet. Run a manual import to load the latest list.'
+        : 'No franchises with outlets were found on this page.';
 
-  const headerMeta = dataUnavailable ? 'Data unavailable' : `${filtered.length} results`;
+  const headerMeta = dataUnavailable ? 'Data unavailable' : `${totalCount} total franchises`;
+
+  useEffect(() => {
+    if (!importJob || importJob.status !== 'running') {
+      return;
+    }
+
+    let active = true;
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/merchants/import/${importJob.id}`, { cache: 'no-store' });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || 'Unable to check import status.');
+        }
+        if (!active) {
+          return;
+        }
+        setImportJob(payload.job);
+      } catch (error) {
+        if (active) {
+          setImportError(error instanceof Error ? error.message : 'Unable to check import status.');
+        }
+      }
+    }, 2000);
+
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, [importJob?.id, importJob?.status]);
+
+  useEffect(() => {
+    if (importJob?.status === 'completed') {
+      router.refresh();
+    }
+  }, [importJob?.status, router]);
+
+  const startImport = async () => {
+    setImportError(null);
+    setIsStartingImport(true);
+    try {
+      const response = await fetch('/api/merchants/import', { method: 'POST' });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to start import.');
+      }
+      setImportJob(payload.job);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Unable to start import.');
+    } finally {
+      setIsStartingImport(false);
+    }
+  };
+
+  const progressPercent =
+    importJob && typeof importJob.totalCount === 'number' && importJob.totalCount > 0
+      ? Math.min(100, Math.round((importJob.processedCount / importJob.totalCount) * 100))
+      : null;
 
   return (
     <>
@@ -102,6 +169,45 @@ export default function MerchantsClient({
               type="search"
             />
           </label>
+        </div>
+        <div className={styles.importBar}>
+          <button
+            type="button"
+            className={styles.importButton}
+            onClick={startImport}
+            disabled={isStartingImport || importJob?.status === 'running'}
+          >
+            {importJob?.status === 'running' ? 'Importing...' : 'Import latest data'}
+          </button>
+          <div className={styles.importStatus}>
+            {importJob ? (
+              <>
+                <span className={styles.importLabel}>
+                  {importJob.status === 'running'
+                    ? `Imported ${importJob.processedCount} franchises`
+                    : importJob.status === 'completed'
+                      ? 'Import complete'
+                      : 'Import failed'}
+                </span>
+                {importJob.status === 'running' && progressPercent !== null ? (
+                  <span className={styles.importPercent}>{progressPercent}%</span>
+                ) : null}
+              </>
+            ) : isStartingImport ? (
+              <span className={styles.importLabel}>Starting import...</span>
+            ) : (
+              <span className={styles.importLabel}>Use the button to refresh the cached list.</span>
+            )}
+          </div>
+          {importJob?.status === 'running' && progressPercent !== null ? (
+            <div className={styles.progressBar} aria-hidden="true">
+              <span className={styles.progressFill} style={{ width: `${progressPercent}%` }} />
+            </div>
+          ) : null}
+          {importError ? <p className={styles.importError}>{importError}</p> : null}
+          {importJob?.status === 'failed' && importJob.errorMessage ? (
+            <p className={styles.importError}>{importJob.errorMessage}</p>
+          ) : null}
         </div>
       </div>
 
@@ -167,7 +273,7 @@ export default function MerchantsClient({
         </div>
         <div className={ticketStyles.paginationBar}>
           <span className={ticketStyles.paginationInfo}>
-            Showing {filtered.length} of {outletFranchises.length} franchises on this page
+            Showing {filtered.length} of {outletFranchises.length} on this page - {totalCount} total
           </span>
           <div className={ticketStyles.paginationControls}>
             {previousPage ? (
@@ -196,3 +302,11 @@ export default function MerchantsClient({
     </>
   );
 }
+
+type FranchiseImportJob = {
+  id: number;
+  status: 'running' | 'completed' | 'failed';
+  processedCount: number;
+  totalCount: number | null;
+  errorMessage: string | null;
+};

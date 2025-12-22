@@ -91,4 +91,5 @@ export const env = {
   timezone: process.env.APP_TIMEZONE ?? 'Asia/Kuala_Lumpur',
   franchiseApiEmail: process.env.CLOUD_API_EMAIL ?? null,
   franchiseApiPassword: process.env.CLOUD_API_PASSWORD ?? null,
+  franchiseImportCronSecret: process.env.FRANCHISE_IMPORT_CRON_SECRET ?? null,
 };
