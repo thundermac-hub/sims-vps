@@ -14,6 +14,25 @@ export type FranchiseLookupResult = {
   found: boolean;
 };
 
+export type FranchiseOutletSummary = {
+  id: string | null;
+  name: string | null;
+};
+
+export type FranchiseSummary = {
+  fid: string | null;
+  name: string | null;
+  outlets: FranchiseOutletSummary[];
+};
+
+export type FranchiseListResult = {
+  franchises: FranchiseSummary[];
+  currentPage: number;
+  perPage: number;
+  totalCount: number | null;
+  totalPages: number | null;
+};
+
 let cachedToken: CachedToken | null = null;
 
 function hasValidToken(): boolean {
@@ -149,6 +168,211 @@ export async function fetchFranchiseOutlet(fid: string, oid: string): Promise<Fr
     } catch (error) {
       console.error('Error fetching franchise/outlet name', error);
       return { franchiseName: null, outletName: null, found: false };
+    }
+  };
+
+  return doFetch(false);
+}
+
+const FRANCHISE_LIST_KEYS = ['data', 'results', 'franchises'];
+
+const franchiseString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return null;
+};
+
+const franchiseNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return null;
+};
+
+const pickFranchiseField = (record: Record<string, unknown>, keys: string[]): string | null => {
+  for (const key of keys) {
+    if (key in record) {
+      const value = franchiseString(record[key]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  return null;
+};
+
+const normalizeOutlet = (raw: unknown): FranchiseOutletSummary | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  const name = pickFranchiseField(record, ['name', 'outlet_name', 'outletName']);
+  const id = pickFranchiseField(record, ['oid', 'outlet_id', 'outletId', 'id']);
+  if (!name && !id) {
+    return null;
+  }
+  return { id, name };
+};
+
+const normalizeOutlets = (raw: unknown): FranchiseOutletSummary[] => {
+  if (!raw) {
+    return [];
+  }
+  if (Array.isArray(raw)) {
+    return raw.map(normalizeOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+  }
+  if (typeof raw === 'object') {
+    const record = raw as Record<string, unknown>;
+    if (Array.isArray(record.data)) {
+      return record.data.map(normalizeOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+    }
+    if (Array.isArray(record.outlets)) {
+      return record.outlets.map(normalizeOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+    }
+    const direct = normalizeOutlet(record);
+    if (direct) {
+      return [direct];
+    }
+    const values = Object.values(record);
+    if (values.some((value) => value && typeof value === 'object')) {
+      return values.map(normalizeOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+    }
+  }
+  return [];
+};
+
+const normalizeFranchise = (raw: unknown): FranchiseSummary | null => {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  const fid = pickFranchiseField(record, ['fid', 'FID', 'franchise_id', 'franchiseId', 'id']);
+  const name = pickFranchiseField(record, ['name', 'franchise_name', 'franchiseName', 'merchant_name', 'merchantName']);
+  const outlets = normalizeOutlets(
+    record.outlets ?? record.outlet ?? record.stores ?? record.store ?? record.locations ?? record.branches,
+  );
+  if (!fid && !name && outlets.length === 0) {
+    return null;
+  }
+  return {
+    fid,
+    name,
+    outlets,
+  };
+};
+
+const extractFranchiseList = (payload: unknown): { rows: unknown[]; meta: Record<string, unknown> | null } => {
+  if (Array.isArray(payload)) {
+    return { rows: payload, meta: null };
+  }
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>;
+    for (const key of FRANCHISE_LIST_KEYS) {
+      if (Array.isArray(record[key])) {
+        return { rows: record[key] as unknown[], meta: record };
+      }
+    }
+  }
+  return { rows: [], meta: null };
+};
+
+export async function fetchFranchiseList(page: number, perPage: number): Promise<FranchiseListResult> {
+  const safePage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
+  const safePerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : 25;
+
+  const doFetch = async (retrying = false): Promise<FranchiseListResult> => {
+    const token = await fetchAuthToken();
+    if (!token) {
+      return {
+        franchises: [],
+        currentPage: safePage,
+        perPage: safePerPage,
+        totalCount: null,
+        totalPages: null,
+      };
+    }
+
+    try {
+      const url = new URL(`${API_BASE_URL}/api/franchise-retrieve/`);
+      url.searchParams.set('per_page', String(safePerPage));
+      url.searchParams.set('page', String(safePage));
+      url.searchParams.set('api_token', token);
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        cache: 'no-store',
+      });
+
+      if (response.status === 401 && !retrying) {
+        cachedToken = null;
+        return doFetch(true);
+      }
+
+      if (!response.ok) {
+        console.warn('Franchise list lookup failed', response.status, response.statusText);
+        return {
+          franchises: [],
+          currentPage: safePage,
+          perPage: safePerPage,
+          totalCount: null,
+          totalPages: null,
+        };
+      }
+
+      const payload = (await response.json()) as unknown;
+      const { rows, meta } = extractFranchiseList(payload);
+      const franchises = rows
+        .map(normalizeFranchise)
+        .filter((entry): entry is FranchiseSummary => Boolean(entry));
+
+      const totalCount =
+        (meta && franchiseNumber(meta.total)) ??
+        (meta && franchiseNumber(meta.total_count)) ??
+        (meta && franchiseNumber(meta.count)) ??
+        null;
+      const perPageFromMeta = (meta && franchiseNumber(meta.per_page)) ?? safePerPage;
+      const currentPage =
+        (meta && franchiseNumber(meta.current_page)) ??
+        (meta && franchiseNumber(meta.page)) ??
+        safePage;
+      const totalPages =
+        (meta && franchiseNumber(meta.last_page)) ??
+        (meta && franchiseNumber(meta.total_pages)) ??
+        (meta && franchiseNumber(meta.totalPages)) ??
+        (totalCount ? Math.max(1, Math.ceil(totalCount / perPageFromMeta)) : null);
+
+      return {
+        franchises,
+        currentPage,
+        perPage: perPageFromMeta,
+        totalCount,
+        totalPages,
+      };
+    } catch (error) {
+      console.error('Error fetching franchise list', error);
+      return {
+        franchises: [],
+        currentPage: safePage,
+        perPage: safePerPage,
+        totalCount: null,
+        totalPages: null,
+      };
     }
   };
 

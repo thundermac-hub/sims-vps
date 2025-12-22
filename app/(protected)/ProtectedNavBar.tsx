@@ -41,6 +41,7 @@ export default function ProtectedNavBar({
     ? [
         { href: '/dashboard', label: 'Dashboard' },
         { href: '/tickets', label: 'Tickets' },
+        { href: '/merchants', label: 'Merchants' },
         { href: '/csat', label: 'CSAT' },
         ...(canConfigureSupport ? [{ href: '/support-settings', label: 'Support Settings' }] : []),
       ]
