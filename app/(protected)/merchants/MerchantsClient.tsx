@@ -36,6 +36,31 @@ const formatFranchiseName = (name: string | null, fid: string | null): string =>
   return fid ? `Franchise ${fid}` : 'Unnamed franchise';
 };
 
+const formatDetailValue = (value: string | null): string => {
+  const cleaned = (value ?? '').trim();
+  return cleaned || '-';
+};
+
+const formatDateTime = (value: string | null): string => {
+  const cleaned = (value ?? '').trim();
+  if (!cleaned) {
+    return '-';
+  }
+  const parsed = Date.parse(cleaned);
+  if (Number.isNaN(parsed)) {
+    return cleaned;
+  }
+  return new Date(parsed).toLocaleString();
+};
+
+const buildFranchiseLink = (fid: string | null): string | null => {
+  const cleaned = (fid ?? '').trim();
+  if (!cleaned) {
+    return null;
+  }
+  return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
+};
+
 const buildPageHref = (page: number, query: string): string => {
   const params = new URLSearchParams();
   params.set('page', String(page));
@@ -237,6 +262,7 @@ export default function MerchantsClient({
                   const fid = franchise.fid ?? '';
                   const name = formatFranchiseName(franchise.name, franchise.fid);
                   const key = fid || name ? `${fid}-${name}` : `franchise-${index}`;
+                  const franchiseLink = buildFranchiseLink(franchise.fid);
                   return (
                     <tr key={key}>
                       <td colSpan={3} className={styles.franchiseCell} data-label="Franchise">
@@ -250,14 +276,92 @@ export default function MerchantsClient({
                             </div>
                           </summary>
                           <div className={styles.outletListWrapper}>
+                            <div className={styles.detailGrid}>
+                              <div className={styles.detailItem}>
+                                <span className={styles.detailLabel}>Company</span>
+                                <span className={styles.detailValue}>{formatDetailValue(franchise.company ?? null)}</span>
+                              </div>
+                              <div className={styles.detailItem}>
+                                <span className={styles.detailLabel}>Company Address</span>
+                                <span className={styles.detailValue}>
+                                  {formatDetailValue(franchise.companyAddress ?? null)}
+                                </span>
+                              </div>
+                              <div className={styles.detailItem}>
+                                <span className={styles.detailLabel}>Created At</span>
+                                <span className={styles.detailValue}>{formatDateTime(franchise.createdAt ?? null)}</span>
+                              </div>
+                              <div className={styles.detailItem}>
+                                <span className={styles.detailLabel}>Updated At</span>
+                                <span className={styles.detailValue}>{formatDateTime(franchise.updatedAt ?? null)}</span>
+                              </div>
+                              <div className={styles.detailItem}>
+                                <span className={styles.detailLabel}>Cloud Link</span>
+                                {franchiseLink ? (
+                                  <a
+                                    className={styles.detailLink}
+                                    href={franchiseLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    {franchiseLink}
+                                  </a>
+                                ) : (
+                                  <span className={styles.detailValue}>-</span>
+                                )}
+                              </div>
+                            </div>
                             <ul className={styles.outletList}>
                               {franchise.outlets.map((outlet, outletIndex) => (
                                 <li
                                   key={`${fid || name}-outlet-${outlet.id ?? outletIndex}`}
                                   className={styles.outletItem}
                                 >
-                                  <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
-                                  <span className={styles.outletTag}>{formatOutletId(outlet.id)}</span>
+                                  <div className={styles.outletHeader}>
+                                    <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
+                                    <span className={styles.outletTag}>{formatOutletId(outlet.id)}</span>
+                                  </div>
+                                  <div className={styles.detailGrid}>
+                                    <div className={styles.detailItem}>
+                                      <span className={styles.detailLabel}>Address</span>
+                                      <span className={styles.detailValue}>
+                                        {formatDetailValue(outlet.address ?? null)}
+                                      </span>
+                                    </div>
+                                    <div className={styles.detailItem}>
+                                      <span className={styles.detailLabel}>Maps URL</span>
+                                      {outlet.mapsUrl ? (
+                                        <a
+                                          className={styles.detailLink}
+                                          href={outlet.mapsUrl}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {outlet.mapsUrl}
+                                        </a>
+                                      ) : (
+                                        <span className={styles.detailValue}>-</span>
+                                      )}
+                                    </div>
+                                    <div className={styles.detailItem}>
+                                      <span className={styles.detailLabel}>Valid Until</span>
+                                      <span className={styles.detailValue}>
+                                        {formatDateTime(outlet.validUntil ?? null)}
+                                      </span>
+                                    </div>
+                                    <div className={styles.detailItem}>
+                                      <span className={styles.detailLabel}>Created At</span>
+                                      <span className={styles.detailValue}>
+                                        {formatDateTime(outlet.createdAt ?? null)}
+                                      </span>
+                                    </div>
+                                    <div className={styles.detailItem}>
+                                      <span className={styles.detailLabel}>Updated At</span>
+                                      <span className={styles.detailValue}>
+                                        {formatDateTime(outlet.updatedAt ?? null)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </li>
                               ))}
                             </ul>

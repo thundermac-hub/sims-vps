@@ -17,11 +17,20 @@ export type FranchiseLookupResult = {
 export type FranchiseOutletSummary = {
   id: string | null;
   name: string | null;
+  address?: string | null;
+  mapsUrl?: string | null;
+  validUntil?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 export type FranchiseSummary = {
   fid: string | null;
   name: string | null;
+  company?: string | null;
+  companyAddress?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
   outlets: FranchiseOutletSummary[];
 };
 
@@ -267,6 +276,10 @@ export const toFranchiseSummary = (raw: unknown): FranchiseSummary | null => {
   const record = raw as Record<string, unknown>;
   const fid = pickFranchiseField(record, ['fid', 'FID', 'franchise_id', 'franchiseId', 'id']);
   const name = pickFranchiseField(record, ['name', 'franchise_name', 'franchiseName', 'merchant_name', 'merchantName']);
+  const company = pickFranchiseField(record, ['company', 'company_name', 'companyName']);
+  const companyAddress = pickFranchiseField(record, ['company_address', 'companyAddress']);
+  const createdAt = pickFranchiseField(record, ['created_at', 'createdAt']);
+  const updatedAt = pickFranchiseField(record, ['updated_at', 'updatedAt']);
   const outlets = normalizeOutlets(
     record.outlets ?? record.outlet ?? record.stores ?? record.store ?? record.locations ?? record.branches,
   );
@@ -276,6 +289,10 @@ export const toFranchiseSummary = (raw: unknown): FranchiseSummary | null => {
   return {
     fid,
     name,
+    company,
+    companyAddress,
+    createdAt,
+    updatedAt,
     outlets,
   };
 };

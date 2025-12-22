@@ -36,6 +36,7 @@ type FranchiseImportJobRow = {
 type FranchiseCacheRow = {
   fid: string | null;
   franchise_name: string | null;
+  franchise_json?: unknown;
   outlets_json: unknown;
   outlet_count: number | null;
   import_index: number | null;
@@ -70,25 +71,32 @@ const mapJobRow = (row: FranchiseImportJobRow): FranchiseImportJob => ({
   requestedBy: row.requested_by ?? null,
 });
 
-const normaliseOutlet = (value: unknown): FranchiseOutletSummary | null => {
-  if (!value || typeof value !== 'object') {
-    return null;
+const normaliseString = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
   }
-  const record = value as Record<string, unknown>;
-  const idRaw = record.id ?? record.oid ?? null;
-  const nameRaw = record.name ?? record.outlet_name ?? null;
-  const id = typeof idRaw === 'string' ? idRaw.trim() || null : typeof idRaw === 'number' ? String(idRaw) : null;
-  const name =
-    typeof nameRaw === 'string' ? nameRaw.trim() || null : typeof nameRaw === 'number' ? String(nameRaw) : null;
-  if (!id && !name) {
-    return null;
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
   }
-  return { id, name };
+  return null;
 };
 
-const parseOutletList = (value: unknown): FranchiseOutletSummary[] => {
+const pickField = (record: Record<string, unknown>, keys: string[]): string | null => {
+  for (const key of keys) {
+    if (key in record) {
+      const value = normaliseString(record[key]);
+      if (value) {
+        return value;
+      }
+    }
+  }
+  return null;
+};
+
+const parseJsonValue = (value: unknown): unknown => {
   if (!value) {
-    return [];
+    return null;
   }
   let raw = value;
   if (typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
@@ -96,16 +104,85 @@ const parseOutletList = (value: unknown): FranchiseOutletSummary[] => {
   }
   if (typeof raw === 'string') {
     try {
-      raw = JSON.parse(raw);
+      return JSON.parse(raw);
     } catch (error) {
-      console.warn('Failed to parse cached outlet list', error);
-      return [];
+      console.warn('Failed to parse cached json value', error);
+      return null;
     }
   }
-  if (!Array.isArray(raw)) {
+  return raw;
+};
+
+const normaliseOutlet = (value: unknown): FranchiseOutletSummary | null => {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const id = pickField(record, ['id', 'oid', 'outlet_id', 'outletId', 'outletID']);
+  const name = pickField(record, ['name', 'outlet_name', 'outletName']);
+  const address = pickField(record, ['address', 'address_line', 'addressLine']);
+  const mapsUrl = pickField(record, ['maps_url', 'mapsUrl', 'map_url', 'mapUrl']);
+  const validUntil = pickField(record, ['valid_until', 'validUntil']);
+  const createdAt = pickField(record, ['created_at', 'createdAt']);
+  const updatedAt = pickField(record, ['updated_at', 'updatedAt']);
+  if (!id && !name && !address && !mapsUrl && !validUntil && !createdAt && !updatedAt) {
+    return null;
+  }
+  return { id, name, address, mapsUrl, validUntil, createdAt, updatedAt };
+};
+
+const parseOutletList = (value: unknown): FranchiseOutletSummary[] => {
+  if (!value) {
     return [];
   }
-  return raw.map(normaliseOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+  const raw = parseJsonValue(value);
+  if (Array.isArray(raw)) {
+    return raw.map(normaliseOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+  }
+  if (typeof raw === 'object' && raw !== null) {
+    const record = raw as Record<string, unknown>;
+    const listKeys = ['data', 'outlets', 'stores', 'locations', 'branches'];
+    for (const key of listKeys) {
+      const candidate = record[key];
+      if (Array.isArray(candidate)) {
+        return candidate.map(normaliseOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+      }
+    }
+    const direct = normaliseOutlet(record);
+    if (direct) {
+      return [direct];
+    }
+    const values = Object.values(record);
+    if (values.some((entry) => entry && typeof entry === 'object')) {
+      return values.map(normaliseOutlet).filter((entry): entry is FranchiseOutletSummary => Boolean(entry));
+    }
+  }
+  return [];
+};
+
+const parseFranchiseDetails = (
+  value: unknown,
+): {
+  fid: string | null;
+  name: string | null;
+  company: string | null;
+  companyAddress: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+} | null => {
+  const raw = parseJsonValue(value);
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  return {
+    fid: pickField(record, ['fid', 'FID', 'franchise_id', 'franchiseId', 'id']),
+    name: pickField(record, ['name', 'franchise_name', 'franchiseName', 'merchant_name', 'merchantName']),
+    company: pickField(record, ['company', 'company_name', 'companyName']),
+    companyAddress: pickField(record, ['company_address', 'companyAddress']),
+    createdAt: pickField(record, ['created_at', 'createdAt']),
+    updatedAt: pickField(record, ['updated_at', 'updatedAt']),
+  };
 };
 
 export async function listCachedFranchises(page: number, perPage: number): Promise<{
@@ -119,7 +196,7 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
 
   const { data, error, count } = await supabase
     .from<FranchiseCacheRow>('franchise_cache')
-    .select('fid, franchise_name, outlets_json, outlet_count, import_index', { count: 'exact' })
+    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index', { count: 'exact' })
     .eq('is_active', true)
     .gte('outlet_count', 1)
     .order('import_index', { ascending: false })
@@ -130,11 +207,18 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
   }
 
   const rows = Array.isArray(data) ? data : data ? [data] : [];
-  const franchises = rows.map((row) => ({
-    fid: row.fid ?? null,
-    name: row.franchise_name ?? null,
-    outlets: parseOutletList(row.outlets_json),
-  }));
+  const franchises = rows.map((row) => {
+    const details = parseFranchiseDetails(row.franchise_json ?? null);
+    return {
+      fid: row.fid ?? details?.fid ?? null,
+      name: row.franchise_name ?? details?.name ?? null,
+      company: details?.company ?? null,
+      companyAddress: details?.companyAddress ?? null,
+      createdAt: details?.createdAt ?? null,
+      updatedAt: details?.updatedAt ?? null,
+      outlets: parseOutletList(row.outlets_json),
+    };
+  });
 
   return {
     franchises,
@@ -233,10 +317,21 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
         const cacheRows = response.rows.map((franchise) => {
           const summary = toFranchiseSummary(franchise) ?? { fid: null, name: null, outlets: [] };
           const franchiseJson = JSON.stringify(franchise ?? null) ?? 'null';
+          const outletRaw =
+            franchise && typeof franchise === 'object'
+              ? ((franchise as Record<string, unknown>).outlets ??
+                  (franchise as Record<string, unknown>).outlet ??
+                  (franchise as Record<string, unknown>).stores ??
+                  (franchise as Record<string, unknown>).store ??
+                  (franchise as Record<string, unknown>).locations ??
+                  (franchise as Record<string, unknown>).branches ??
+                  null)
+              : null;
+          const outletsJson = JSON.stringify(outletRaw ?? null) ?? 'null';
           return {
             fid: summary.fid,
             franchise_name: summary.name,
-            outlets_json: JSON.stringify(summary.outlets),
+            outlets_json: outletsJson,
             franchise_json: franchiseJson,
             outlet_count: summary.outlets.length,
             import_index: importIndex++,
