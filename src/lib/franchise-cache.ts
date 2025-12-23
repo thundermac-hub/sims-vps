@@ -356,7 +356,13 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
       }
       if (!totalCountSet && typeof response.totalCount === 'number') {
         totalCountSet = true;
-        await supabase.from('franchise_import_jobs').update({ total_count: response.totalCount }).eq('id', jobId);
+        const { error: totalCountError } = await supabase
+          .from('franchise_import_jobs')
+          .update({ total_count: response.totalCount })
+          .eq('id', jobId);
+        if (totalCountError) {
+          throw totalCountError;
+        }
       }
       if (response.rows.length > 0) {
         const cacheRows = response.rows.map((franchise) => {
@@ -386,9 +392,18 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
             is_active: 0,
           };
         });
-        await supabase.from('franchise_cache').insert(cacheRows);
+        const { error: insertError } = await supabase.from('franchise_cache').insert(cacheRows);
+        if (insertError) {
+          throw insertError;
+        }
         processedCount += cacheRows.length;
-        await supabase.from('franchise_import_jobs').update({ processed_count: processedCount }).eq('id', jobId);
+        const { error: progressError } = await supabase
+          .from('franchise_import_jobs')
+          .update({ processed_count: processedCount })
+          .eq('id', jobId);
+        if (progressError) {
+          throw progressError;
+        }
       }
 
       if (response.totalPages && page >= response.totalPages) {
