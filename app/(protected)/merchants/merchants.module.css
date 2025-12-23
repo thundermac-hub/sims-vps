@@ -1,58 +1,86 @@
-.franchiseCell {
-  padding: 0;
+.tableRow {
+  border-bottom: 1px solid #eef2ff;
 }
 
-.franchiseDetails {
-  width: 100%;
+.expandCell {
+  width: 48px;
 }
 
-.franchiseSummary {
-  list-style: none;
-  padding: 12px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+.expandButton {
+  border: none;
+  background: transparent;
   cursor: pointer;
-  background: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  transition: background 0.2s ease;
 }
 
-.franchiseSummary::-webkit-details-marker {
-  display: none;
+.expandButton:hover {
+  background: #f3f4f6;
 }
 
-.franchiseSummary::marker {
-  content: '';
+.chevron {
+  display: inline-block;
+  font-size: 14px;
+  transition: transform 0.2s ease;
 }
 
-.franchiseSummary::after {
-  content: '+';
-  font-size: 16px;
-  color: #9ca3af;
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.franchiseMainCell {
+  font-weight: 600;
+  color: #111827;
+}
+
+.franchiseTitle {
+  font-size: 14px;
+}
+
+.fidCell {
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.outletCountCell {
+  text-align: left;
+}
+
+.outletCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #ffe4e6;
+  color: #be123c;
+  font-size: 12px;
   font-weight: 700;
 }
 
-.franchiseDetails[open] .franchiseSummary::after {
-  content: '-';
+.detailRow {
+  background: #ffffff;
 }
 
-.franchiseSummaryText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.outletListWrapper {
-  padding: 12px 16px 16px;
-  background: #f9fafb;
-  border-top: 1px solid #eef2ff;
+.detailCell {
+  padding: 16px 20px 20px;
+  border-bottom: 1px solid #eef2ff;
 }
 
 .detailGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 10px 16px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .detailItem {
@@ -84,34 +112,38 @@
   color: #1d4ed8;
   text-decoration: none;
   font-weight: 600;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  padding: 6px 10px;
-  word-break: break-word;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  padding: 6px 12px;
 }
 
 .detailLink:hover {
-  background: #dbeafe;
+  background: #ffe4e6;
 }
 
-.outletList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.outletSection {
+  margin-top: 18px;
+}
+
+.outletSectionTitle {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.outletCards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.outletItem {
+.outletCard {
   background: #ffffff;
-  border-radius: 10px;
-  padding: 8px 10px;
+  border-radius: 12px;
+  padding: 14px 16px;
   border: 1px solid #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .outletHeader {
@@ -119,12 +151,38 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 10px;
 }
 
 .outletName {
-  font-size: 13px;
+  font-size: 14px;
   color: #111827;
   font-weight: 600;
+}
+
+.outletSub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.mapLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #e11d48;
+  text-decoration: none;
+  font-weight: 600;
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  border-radius: 10px;
+  padding: 6px 12px;
+}
+
+.mapLink:hover {
+  background: #ffe4e6;
 }
 
 .outletTag {
@@ -136,28 +194,93 @@
   white-space: nowrap;
 }
 
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.searchField {
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+}
+
+.searchField:focus-within {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.18);
+}
+
+.searchIcon {
+  width: 18px;
+  height: 18px;
+  color: #9ca3af;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.searchIcon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.searchInput {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+  background: transparent;
+  color: #111827;
+}
+
+.importCta {
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: #ef4444;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.25);
+}
+
+.importCta:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
+.importIcon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.importIcon svg {
+  width: 16px;
+  height: 16px;
+}
+
 .importBar {
-  margin-top: 12px;
+  margin-top: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
-
-.importButton {
-  border-radius: 10px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  border: 1px solid #fda4af;
-  background: #fff5f5;
-  color: #b91c1c;
-  cursor: pointer;
-  align-self: flex-start;
-}
-
-.importButton:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
 }
 
 .importStatus {
@@ -323,20 +446,8 @@
 }
 
 @media (max-width: 720px) {
-  .franchiseSummary {
-    padding: 12px;
-  }
-
   .detailGrid {
     grid-template-columns: 1fr;
-  }
-
-  .outletListWrapper {
-    padding: 12px;
-  }
-
-  .outletItem {
-    align-items: flex-start;
   }
 
   .outletHeader {
@@ -344,7 +455,12 @@
     flex-direction: column;
   }
 
-  .importButton {
+  .searchRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .importCta {
     width: 100%;
     justify-content: center;
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react';
 import ticketStyles from '../tickets/tickets.module.css';
 import styles from './merchants.module.css';
 import type { FranchiseSummary } from '@/lib/franchise';
@@ -114,6 +114,7 @@ export default function MerchantsClient({
   const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isStartingImport, setIsStartingImport] = useState(false);
+  const [openKeys, setOpenKeys] = useState<string[]>([]);
 
   const outletFranchises = useMemo(() => franchises.filter((franchise) => franchise.outlets.length > 0), [franchises]);
 
@@ -228,6 +229,14 @@ export default function MerchantsClient({
   }, [initialQuery]);
 
   useEffect(() => {
+    setOpenKeys([]);
+  }, [franchises]);
+
+  const toggleOpen = (key: string) => {
+    setOpenKeys((previous) => (previous.includes(key) ? previous.filter((value) => value !== key) : [...previous, key]));
+  };
+
+  useEffect(() => {
     if (importJob?.status === 'completed') {
       router.refresh();
     }
@@ -259,26 +268,43 @@ export default function MerchantsClient({
   return (
     <>
       <div className={ticketStyles.filtersCard}>
-        <div className={ticketStyles.filtersGrid}>
-          <label>
-            Search
+        <div className={styles.searchRow}>
+          <div className={styles.searchField}>
+            <span className={styles.searchIcon} aria-hidden="true">
+              <svg viewBox="0 0 20 20" role="presentation">
+                <path
+                  d="M8.5 3.25a5.25 5.25 0 1 1 0 10.5 5.25 5.25 0 0 1 0-10.5ZM2.5 8.5a6 6 0 1 0 10.8 3.6l3.6 3.6a.75.75 0 0 0 1.06-1.06l-3.6-3.6A6 6 0 0 0 2.5 8.5Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
             <input
+              className={styles.searchInput}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search by franchise, FID, or outlet"
               type="search"
+              aria-label="Search by franchise, FID, or outlet"
             />
-          </label>
-        </div>
-        <div className={styles.importBar}>
+          </div>
           <button
             type="button"
-            className={styles.importButton}
+            className={styles.importCta}
             onClick={startImport}
             disabled={isStartingImport || importJob?.status === 'running'}
           >
+            <span className={styles.importIcon} aria-hidden="true">
+              <svg viewBox="0 0 20 20" role="presentation">
+                <path
+                  d="M10 3.25a6.75 6.75 0 1 1-5.6 3H2.5a.75.75 0 0 1 0-1.5h2.75c.3 0 .58.18.69.46A5.25 5.25 0 1 0 10 4.75c-.6 0-1.18.1-1.72.29a.75.75 0 1 1-.5-1.42A6.74 6.74 0 0 1 10 3.25Zm-7.5 4.5a.75.75 0 0 1 .75-.75h3.25a.75.75 0 0 1 .75.75v3.25a.75.75 0 0 1-1.5 0V8.8L3.28 11.32a.75.75 0 1 1-1.06-1.06L4.7 7.78H2.5a.75.75 0 0 1-.75-.75Z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
             {importJob?.status === 'running' ? 'Importing...' : 'Import latest data'}
           </button>
+        </div>
+        <div className={styles.importBar}>
           <div className={styles.importStatus}>
             {importJob ? (
               <>
@@ -334,6 +360,7 @@ export default function MerchantsClient({
           <table className={ticketStyles.table}>
             <thead>
               <tr>
+                <th aria-hidden="true" />
                 <th>Franchise</th>
                 <th>FID</th>
                 <th>Outlets</th>
@@ -352,19 +379,35 @@ export default function MerchantsClient({
                   const name = formatFranchiseName(franchise.name, franchise.fid);
                   const key = fid || name ? `${fid}-${name}` : `franchise-${index}`;
                   const franchiseLink = buildFranchiseLink(franchise.fid);
+                  const isOpen = openKeys.includes(key);
+                  const rowId = `franchise-${index}`;
                   return (
-                    <tr key={key}>
-                      <td colSpan={3} className={styles.franchiseCell} data-label="Franchise">
-                        <details className={styles.franchiseDetails}>
-                          <summary className={styles.franchiseSummary}>
-                            <div className={styles.franchiseSummaryText}>
-                              <span className={ticketStyles.primaryText}>{name}</span>
-                              <span className={ticketStyles.secondaryText}>
-                                FID {fid || '-'} - {franchise.outlets.length} outlets
-                              </span>
-                            </div>
-                          </summary>
-                          <div className={styles.outletListWrapper}>
+                    <Fragment key={key}>
+                      <tr className={styles.tableRow}>
+                        <td className={styles.expandCell}>
+                          <button
+                            type="button"
+                            className={styles.expandButton}
+                            onClick={() => toggleOpen(key)}
+                            aria-expanded={isOpen}
+                            aria-controls={rowId}
+                          >
+                            <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} aria-hidden="true">
+                              &gt;
+                            </span>
+                          </button>
+                        </td>
+                        <td className={styles.franchiseMainCell}>
+                          <span className={styles.franchiseTitle}>{name}</span>
+                        </td>
+                        <td className={styles.fidCell}>{fid ? `FID ${fid}` : '-'}</td>
+                        <td className={styles.outletCountCell}>
+                          <span className={styles.outletCountBadge}>{franchise.outlets.length}</span>
+                        </td>
+                      </tr>
+                      {isOpen ? (
+                        <tr className={styles.detailRow} id={rowId}>
+                          <td colSpan={4} className={styles.detailCell}>
                             <div className={styles.detailGrid}>
                               <div className={styles.detailItem}>
                                 <span className={styles.detailLabel}>Company</span>
@@ -384,80 +427,70 @@ export default function MerchantsClient({
                                 <span className={styles.detailLabel}>Updated At</span>
                                 <span className={styles.detailValue}>{formatDateTime(franchise.updatedAt ?? null)}</span>
                               </div>
-                              <div className={styles.detailItem}>
-                                <span className={styles.detailLabel}>Cloud Link</span>
-                                {franchiseLink ? (
-                                  <a
-                                    className={styles.detailLink}
-                                    href={franchiseLink}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Open in Cloud
-                                  </a>
-                                ) : (
-                                  <span className={styles.detailValue}>-</span>
-                                )}
-                              </div>
                             </div>
-                            <ul className={styles.outletList}>
-                              {franchise.outlets.map((outlet, outletIndex) => (
-                                <li
-                                  key={`${fid || name}-outlet-${outlet.id ?? outletIndex}`}
-                                  className={styles.outletItem}
-                                >
-                                  <div className={styles.outletHeader}>
-                                    <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
-                                    <span className={styles.outletTag}>{formatOutletId(outlet.id)}</span>
-                                  </div>
-                                  <div className={styles.detailGrid}>
-                                    <div className={styles.detailItem}>
-                                      <span className={styles.detailLabel}>Address</span>
-                                      <span className={styles.detailValue}>
-                                        {formatDetailValue(outlet.address ?? null)}
-                                      </span>
-                                    </div>
-                                    <div className={styles.detailItem}>
-                                      <span className={styles.detailLabel}>Maps URL</span>
+                            {franchiseLink ? (
+                              <a className={styles.detailLink} href={franchiseLink} target="_blank" rel="noreferrer">
+                                Open in Cloud
+                              </a>
+                            ) : null}
+                            <div className={styles.outletSection}>
+                              <h4 className={styles.outletSectionTitle}>Outlets</h4>
+                              <div className={styles.outletCards}>
+                                {franchise.outlets.map((outlet, outletIndex) => (
+                                  <div
+                                    key={`${fid || name}-outlet-${outlet.id ?? outletIndex}`}
+                                    className={styles.outletCard}
+                                  >
+                                    <div className={styles.outletHeader}>
+                                      <div>
+                                        <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
+                                        <span className={styles.outletSub}>{formatOutletId(outlet.id)}</span>
+                                      </div>
                                       {outlet.mapsUrl ? (
                                         <a
-                                          className={styles.detailLink}
+                                          className={styles.mapLink}
                                           href={outlet.mapsUrl}
                                           target="_blank"
                                           rel="noreferrer"
                                         >
-                                          Open Map
+                                          View on Maps
                                         </a>
-                                      ) : (
-                                        <span className={styles.detailValue}>-</span>
-                                      )}
+                                      ) : null}
                                     </div>
-                                    <div className={styles.detailItem}>
-                                      <span className={styles.detailLabel}>Valid Until</span>
-                                      <span className={styles.detailValue}>
-                                        {formatDateTime(outlet.validUntil ?? null)}
-                                      </span>
-                                    </div>
-                                    <div className={styles.detailItem}>
-                                      <span className={styles.detailLabel}>Created At</span>
-                                      <span className={styles.detailValue}>
-                                        {formatDateTime(outlet.createdAt ?? null)}
-                                      </span>
-                                    </div>
-                                    <div className={styles.detailItem}>
-                                      <span className={styles.detailLabel}>Updated At</span>
-                                      <span className={styles.detailValue}>
-                                        {formatDateTime(outlet.updatedAt ?? null)}
-                                      </span>
+                                    <div className={styles.detailGrid}>
+                                      <div className={styles.detailItem}>
+                                        <span className={styles.detailLabel}>Address</span>
+                                        <span className={styles.detailValue}>
+                                          {formatDetailValue(outlet.address ?? null)}
+                                        </span>
+                                      </div>
+                                      <div className={styles.detailItem}>
+                                        <span className={styles.detailLabel}>Valid Until</span>
+                                        <span className={styles.detailValue}>
+                                          {formatDateTime(outlet.validUntil ?? null)}
+                                        </span>
+                                      </div>
+                                      <div className={styles.detailItem}>
+                                        <span className={styles.detailLabel}>Created At</span>
+                                        <span className={styles.detailValue}>
+                                          {formatDateTime(outlet.createdAt ?? null)}
+                                        </span>
+                                      </div>
+                                      <div className={styles.detailItem}>
+                                        <span className={styles.detailLabel}>Updated At</span>
+                                        <span className={styles.detailValue}>
+                                          {formatDateTime(outlet.updatedAt ?? null)}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </details>
-                      </td>
-                    </tr>
+                                ))}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })
               )}
