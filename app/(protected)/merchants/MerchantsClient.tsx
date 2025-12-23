@@ -1,8 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import ticketStyles from '../tickets/tickets.module.css';
 import styles from './merchants.module.css';
 import type { FranchiseSummary } from '@/lib/franchise';
@@ -109,6 +108,7 @@ export default function MerchantsClient({
   dataUnavailable,
 }: MerchantsClientProps) {
   const router = useRouter();
+  const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery ?? '');
   const trimmedQuery = query.trim().toLowerCase();
   const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
@@ -162,14 +162,16 @@ export default function MerchantsClient({
     return pages;
   }, [page, totalPagesSafe]);
 
+  const navigateTo = (nextPage: number, nextPerPage = perPage) => {
+    const href = buildPageHref(nextPage, query, nextPerPage);
+    startTransition(() => {
+      router.push(href);
+      router.refresh();
+    });
+  };
+
   const handlePerPageChange = (nextPerPage: number) => {
-    const params = new URLSearchParams();
-    params.set('page', '1');
-    params.set('perPage', String(nextPerPage));
-    if (query.trim()) {
-      params.set('q', query.trim());
-    }
-    router.push(`?${params.toString()}`);
+    navigateTo(1, nextPerPage);
   };
 
   const visibleOutletCount = useMemo(
@@ -473,6 +475,7 @@ export default function MerchantsClient({
                     type="button"
                     className={ticketStyles.paginationButton}
                     onClick={() => handlePerPageChange(option)}
+                    disabled={isNavigating}
                   >
                     {option}
                   </button>
@@ -487,9 +490,14 @@ export default function MerchantsClient({
           </div>
           <div className={ticketStyles.paginationControls}>
             {page > 1 ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(page - 1, query, perPage)}>
+              <button
+                type="button"
+                className={ticketStyles.paginationButton}
+                onClick={() => navigateTo(page - 1)}
+                disabled={isNavigating}
+              >
                 Previous
-              </Link>
+              </button>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Previous</span>
             )}
@@ -497,9 +505,14 @@ export default function MerchantsClient({
               Page {page} of {totalPagesSafe}
             </span>
             {page < totalPagesSafe ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(page + 1, query, perPage)}>
+              <button
+                type="button"
+                className={ticketStyles.paginationButton}
+                onClick={() => navigateTo(page + 1)}
+                disabled={isNavigating}
+              >
                 Next
-              </Link>
+              </button>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Next</span>
             )}
