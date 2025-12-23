@@ -96,6 +96,7 @@ export default async function MerchantsPage({
       </section>
 
       <MerchantsClient
+        key={`${currentPage}-${perPage}-${initialQuery}`}
         franchises={franchises}
         page={currentPage}
         totalPages={totalPages}

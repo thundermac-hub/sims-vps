@@ -224,6 +224,10 @@ export default function MerchantsClient({
   }, [importJob?.id, importJob?.status]);
 
   useEffect(() => {
+    setQuery(initialQuery ?? '');
+  }, [initialQuery]);
+
+  useEffect(() => {
     if (importJob?.status === 'completed') {
       router.refresh();
     }
