@@ -305,7 +305,11 @@ const extractFranchiseList = (payload: unknown): { rows: unknown[]; meta: Record
     const record = payload as Record<string, unknown>;
     for (const key of FRANCHISE_LIST_KEYS) {
       if (Array.isArray(record[key])) {
-        return { rows: record[key] as unknown[], meta: record };
+        const metaValue =
+          record.meta && typeof record.meta === 'object' && record.meta !== null
+            ? (record.meta as Record<string, unknown>)
+            : record;
+        return { rows: record[key] as unknown[], meta: metaValue };
       }
     }
   }

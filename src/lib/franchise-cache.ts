@@ -426,15 +426,13 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
     await supabase.query('UPDATE franchise_cache SET is_active = CASE WHEN job_id = ? THEN 1 ELSE 0 END', [jobId]);
     await supabase.query('DELETE FROM franchise_cache WHERE job_id <> ?', [jobId]);
 
-    await supabase
-      .from('franchise_import_jobs')
-      .update({
-        status: 'completed',
-        finished_at: new Date(),
-        processed_count: processedCount,
-        total_count: processedCount,
-      })
-      .eq('id', jobId);
+    const completionUpdate = {
+      status: 'completed' as const,
+      finished_at: new Date(),
+      processed_count: processedCount,
+      ...(totalCountSet ? {} : { total_count: processedCount }),
+    };
+    await supabase.from('franchise_import_jobs').update(completionUpdate).eq('id', jobId);
   } catch (error) {
     console.error('Failed to import franchise data', error);
     await supabase.query('DELETE FROM franchise_cache WHERE job_id = ?', [jobId]).catch(() => null);

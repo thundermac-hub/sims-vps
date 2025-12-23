@@ -240,6 +240,7 @@
   flex-wrap: wrap;
 }
 
+
 .importOverlay {
   position: fixed;
   inset: 0;
@@ -350,5 +351,10 @@
 
   .importModal {
     width: calc(100% - 32px);
+  }
+
+  .paginationCenter {
+    justify-content: flex-start;
+    text-align: left;
   }
 }

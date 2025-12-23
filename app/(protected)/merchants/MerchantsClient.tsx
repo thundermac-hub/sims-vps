@@ -176,6 +176,9 @@ export default function MerchantsClient({
     () => filtered.reduce((total, franchise) => total + franchise.outlets.length, 0),
     [filtered],
   );
+
+  const startIndex = totalCount === 0 ? 0 : (page - 1) * perPage + 1;
+  const endIndex = totalCount === 0 ? 0 : Math.min(totalCount, page * perPage);
   const activeOutletCount = totalActiveOutlets;
 
   const emptyMessage = dataUnavailable
@@ -275,7 +278,7 @@ export default function MerchantsClient({
               <>
                 <span className={styles.importLabel}>
                   {importJob.status === 'running'
-                    ? `Imported ${importJob.processedCount} franchises`
+                    ? `Processed ${importJob.processedCount} of ${importJob.totalCount ?? '...'}`
                     : importJob.status === 'completed'
                       ? 'Import complete'
                       : 'Import failed'}
@@ -477,46 +480,19 @@ export default function MerchantsClient({
               )}
             </div>
           </div>
-          <span className={ticketStyles.paginationInfo}>
-            Showing {filtered.length} franchises on this page • {totalCount} total
-          </span>
+          <div className={styles.paginationCenter}>
+            <span className={ticketStyles.paginationInfo}>
+              Showing {startIndex}-{endIndex} of {totalCount}
+            </span>
+          </div>
           <div className={ticketStyles.paginationControls}>
-            {page > 1 ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(1, query, perPage)}>
-                First
-              </Link>
-            ) : (
-              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>First</span>
-            )}
             {page > 1 ? (
               <Link className={ticketStyles.paginationButton} href={buildPageHref(page - 1, query, perPage)}>
                 Previous
               </Link>
             ) : (
-              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>
-                Previous
-              </span>
+              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Previous</span>
             )}
-            <div className={styles.paginationPages}>
-              {paginationPages.map((pageNumber) =>
-                pageNumber === page ? (
-                  <span
-                    key={`page-${pageNumber}`}
-                    className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonActive}`}
-                  >
-                    {pageNumber}
-                  </span>
-                ) : (
-                  <Link
-                    key={`page-${pageNumber}`}
-                    className={ticketStyles.paginationButton}
-                    href={buildPageHref(pageNumber, query, perPage)}
-                  >
-                    {pageNumber}
-                  </Link>
-                ),
-              )}
-            </div>
             <span className={ticketStyles.paginationPageIndicator}>
               Page {page} of {totalPagesSafe}
             </span>
@@ -526,13 +502,6 @@ export default function MerchantsClient({
               </Link>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Next</span>
-            )}
-            {page < totalPagesSafe ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(totalPagesSafe, query, perPage)}>
-                Last
-              </Link>
-            ) : (
-              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Last</span>
             )}
           </div>
         </div>
