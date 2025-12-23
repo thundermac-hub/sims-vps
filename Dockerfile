@@ -17,6 +17,8 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
+# Needed for Coolify cron HTTP calls
+RUN apk add --no-cache curl
 # Next.js needs a non-root user
 RUN addgroup -g 1001 nodejs && adduser -D -G nodejs nodejs
 COPY --from=builder /app/public ./public

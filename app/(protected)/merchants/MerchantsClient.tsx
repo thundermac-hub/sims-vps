@@ -10,8 +10,10 @@ import type { FranchiseSummary } from '@/lib/franchise';
 interface MerchantsClientProps {
   franchises: FranchiseSummary[];
   totalCount: number;
+  totalActiveOutlets: number;
   page: number;
   totalPages: number | null;
+  perPage: number;
   initialQuery?: string;
   dataUnavailable?: boolean;
 }
@@ -84,28 +86,25 @@ const buildFranchiseLink = (fid: string | null): string | null => {
   return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
 };
 
-const isOutletActive = (validUntil: string | null): boolean => {
-  const parsed = parseDateTime(validUntil);
-  if (!parsed) {
-    return true;
-  }
-  return parsed.getTime() >= Date.now();
-};
-
-const buildPageHref = (page: number, query: string): string => {
+const buildPageHref = (page: number, query: string, perPage: number): string => {
   const params = new URLSearchParams();
   params.set('page', String(page));
+  params.set('perPage', String(perPage));
   if (query.trim()) {
     params.set('q', query.trim());
   }
   return `?${params.toString()}`;
 };
 
+const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
+
 export default function MerchantsClient({
   franchises,
   totalCount,
+  totalActiveOutlets,
   page,
   totalPages,
+  perPage,
   initialQuery,
   dataUnavailable,
 }: MerchantsClientProps) {
@@ -163,18 +162,21 @@ export default function MerchantsClient({
     return pages;
   }, [page, totalPagesSafe]);
 
+  const handlePerPageChange = (nextPerPage: number) => {
+    const params = new URLSearchParams();
+    params.set('page', '1');
+    params.set('perPage', String(nextPerPage));
+    if (query.trim()) {
+      params.set('q', query.trim());
+    }
+    router.push(`?${params.toString()}`);
+  };
+
   const visibleOutletCount = useMemo(
     () => filtered.reduce((total, franchise) => total + franchise.outlets.length, 0),
     [filtered],
   );
-  const activeOutletCount = useMemo(
-    () =>
-      filtered.reduce(
-        (total, franchise) => total + franchise.outlets.filter((outlet) => isOutletActive(outlet.validUntil ?? null)).length,
-        0,
-      ),
-    [filtered],
-  );
+  const activeOutletCount = totalActiveOutlets;
 
   const emptyMessage = dataUnavailable
     ? 'Unable to load franchise data. Please refresh and try again.'
@@ -454,19 +456,40 @@ export default function MerchantsClient({
           </table>
         </div>
         <div className={ticketStyles.paginationBar}>
+          <div className={ticketStyles.paginationPerPage}>
+            <span className={ticketStyles.paginationLabel}>Rows per page</span>
+            <div className={ticketStyles.paginationPerPageOptions}>
+              {PER_PAGE_OPTIONS.map((option) =>
+                option === perPage ? (
+                  <span key={option} className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonActive}`}>
+                    {option}
+                  </span>
+                ) : (
+                  <button
+                    key={option}
+                    type="button"
+                    className={ticketStyles.paginationButton}
+                    onClick={() => handlePerPageChange(option)}
+                  >
+                    {option}
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
           <span className={ticketStyles.paginationInfo}>
             Showing {filtered.length} franchises on this page • {totalCount} total
           </span>
           <div className={ticketStyles.paginationControls}>
             {page > 1 ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(1, query)}>
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(1, query, perPage)}>
                 First
               </Link>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>First</span>
             )}
             {page > 1 ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(page - 1, query)}>
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(page - 1, query, perPage)}>
                 Previous
               </Link>
             ) : (
@@ -487,7 +510,7 @@ export default function MerchantsClient({
                   <Link
                     key={`page-${pageNumber}`}
                     className={ticketStyles.paginationButton}
-                    href={buildPageHref(pageNumber, query)}
+                    href={buildPageHref(pageNumber, query, perPage)}
                   >
                     {pageNumber}
                   </Link>
@@ -498,14 +521,14 @@ export default function MerchantsClient({
               Page {page} of {totalPagesSafe}
             </span>
             {page < totalPagesSafe ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(page + 1, query)}>
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(page + 1, query, perPage)}>
                 Next
               </Link>
             ) : (
               <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Next</span>
             )}
             {page < totalPagesSafe ? (
-              <Link className={ticketStyles.paginationButton} href={buildPageHref(totalPagesSafe, query)}>
+              <Link className={ticketStyles.paginationButton} href={buildPageHref(totalPagesSafe, query, perPage)}>
                 Last
               </Link>
             ) : (

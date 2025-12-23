@@ -185,6 +185,38 @@ const parseFranchiseDetails = (
   };
 };
 
+const normalizeDateInput = (value: string): string =>
+  value.replace(/([+-]\d{2})(\d{2})$/, (_match, hours, minutes) => `${hours}:${minutes}`);
+
+const parseDateValue = (value: string | null): Date | null => {
+  const cleaned = (value ?? '').trim();
+  if (!cleaned) {
+    return null;
+  }
+  const normalised = normalizeDateInput(cleaned);
+  const parsed = Date.parse(normalised);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return new Date(parsed);
+};
+
+const isOutletActive = (validUntil: string | null): boolean => {
+  const parsed = parseDateValue(validUntil);
+  if (!parsed) {
+    return true;
+  }
+  return parsed.getTime() >= Date.now();
+};
+
+const countActiveOutlets = (value: unknown): number => {
+  const outlets = parseOutletList(value);
+  if (outlets.length === 0) {
+    return 0;
+  }
+  return outlets.reduce((total, outlet) => total + (isOutletActive(outlet.validUntil ?? null) ? 1 : 0), 0);
+};
+
 export async function listCachedFranchises(page: number, perPage: number): Promise<{
   franchises: FranchiseSummary[];
   totalCount: number;
@@ -223,6 +255,19 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
   return {
     franchises,
     totalCount: typeof count === 'number' ? count : 0,
+  };
+}
+
+export async function getFranchiseMetrics(): Promise<{
+  totalActiveOutlets: number;
+}> {
+  const supabase = getSupabaseAdminClient();
+  const rows = await supabase.query<{ total_active_outlets: number | null }>(
+    'SELECT COALESCE(SUM(active_outlet_count), 0) as total_active_outlets FROM franchise_cache WHERE is_active = 1',
+  );
+  const totalActiveOutlets = Number(rows[0]?.total_active_outlets ?? 0);
+  return {
+    totalActiveOutlets: Number.isFinite(totalActiveOutlets) ? totalActiveOutlets : 0,
   };
 }
 
@@ -328,12 +373,14 @@ async function runFranchiseImport(jobId: number, pageSize: number): Promise<void
                   null)
               : null;
           const outletsJson = JSON.stringify(outletRaw ?? null) ?? 'null';
+          const activeOutletCount = countActiveOutlets(outletRaw);
           return {
             fid: summary.fid,
             franchise_name: summary.name,
             outlets_json: outletsJson,
             franchise_json: franchiseJson,
             outlet_count: summary.outlets.length,
+            active_outlet_count: activeOutletCount,
             import_index: importIndex++,
             job_id: jobId,
             is_active: 0,

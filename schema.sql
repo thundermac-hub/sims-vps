@@ -188,6 +188,7 @@ CREATE TABLE IF NOT EXISTS franchise_cache (
   franchise_json JSON,
   outlets_json JSON NOT NULL,
   outlet_count INT NOT NULL DEFAULT 0,
+  active_outlet_count INT NOT NULL DEFAULT 0,
   import_index INT NOT NULL,
   job_id BIGINT,
   is_active BOOLEAN NOT NULL DEFAULT FALSE,
@@ -197,6 +198,7 @@ CREATE TABLE IF NOT EXISTS franchise_cache (
 );
 
 CALL add_column_if_missing('franchise_cache', 'franchise_json', 'JSON');
+CALL add_column_if_missing('franchise_cache', 'active_outlet_count', 'INT NOT NULL DEFAULT 0');
 CALL create_index_if_missing('franchise_cache', 'franchise_cache_active_idx', 'is_active, import_index');
 CALL create_index_if_missing('franchise_cache', 'franchise_cache_fid_idx', 'fid');
 
