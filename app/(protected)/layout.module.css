@@ -9,16 +9,23 @@
   flex-shrink: 0;
   background: linear-gradient(180deg, #ffffff 0%, #f7f7fb 100%);
   border-right: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 18px;
   box-shadow: 8px 0 24px rgba(15, 23, 42, 0.06);
   position: sticky;
   top: 0;
   z-index: 100;
   height: 100vh;
   overflow-y: auto;
+  transform: translateX(0);
+  transition: transform 0.25s ease;
 }
 
 .navCollapsed {
   width: 76px;
+}
+
+.navMobileOpen {
+  transform: translateX(0);
 }
 
 .navInner {
@@ -40,6 +47,93 @@
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
+}
+
+.mobileTopNav {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+
+.mobileTopNavButton {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: none;
+  background: #ffffff;
+  color: #1f2937;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: color 0.2s ease;
+}
+
+.mobileTopNavButton:hover .collapseIcon {
+  color: #ef4444;
+}
+
+.mobileTopNavBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mobileTopNavText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.mobileTopNavLogo {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 2px;
+}
+
+.mobileTopNavLogo :global(img) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mobileTopNavTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  letter-spacing: 0.02em;
+}
+
+.mobileTopNavSubtitle {
+  font-size: 11px;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+}
+
+.mobileOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 110;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.mobileOverlayVisible {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .collapseButton {
@@ -321,13 +415,22 @@
 
 @media (max-width: 900px) {
   .wrapper {
-    flex-direction: column;
+    display: block;
   }
 
   .nav {
-    width: 100%;
-    height: auto;
-    position: static;
+    width: 220px;
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    transform: translateX(-110%);
+    border-radius: 18px;
+    z-index: 120;
+  }
+
+  .navMobileOpen {
+    transform: translateX(0);
   }
 
   .navInner {
@@ -338,34 +441,47 @@
     display: none;
   }
 
+  .mobileTopNav {
+    display: flex;
+  }
+
+  .mobileOverlay {
+    display: block;
+  }
+
   .navSections {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 10px;
   }
 
   .section {
-    flex: 1 1 220px;
+    flex: 0 0 auto;
+    gap: 6px;
   }
 
   .sectionList {
-    padding-left: 0;
-    border-left: none;
-  }
-
-  .sectionLink::before {
-    display: none;
+    padding-left: 14px;
+    border-left: 1px solid rgba(15, 23, 42, 0.08);
   }
 
   .navCollapsed {
-    width: 100%;
+    width: 220px;
+  }
+
+  .navCollapsed .headerTop {
+    justify-content: flex-start;
+    gap: 12px;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .navCollapsed .brand {
+    display: flex;
   }
 
   .navCollapsed .brandName {
     display: flex;
-  }
-
-  .navCollapsed .brand {
-    justify-content: flex-start;
   }
 
   .navCollapsed .userMeta {
@@ -373,7 +489,7 @@
   }
 
   .navCollapsed .userCard {
-    justify-content: flex-start;
+    display: flex;
   }
 
   .navCollapsed .sectionTitle {
@@ -384,10 +500,19 @@
     display: inline;
   }
 
+  .navCollapsed .sectionLinkIcon {
+    display: inline-flex;
+  }
 
   .navCollapsed .sectionLink {
     justify-content: flex-start;
     padding: 7px 12px;
+    gap: 8px;
+  }
+
+  .navCollapsed .sectionList {
+    padding-left: 14px;
+    border-left: 1px solid rgba(15, 23, 42, 0.08);
   }
 
   .content {

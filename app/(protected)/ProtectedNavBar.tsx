@@ -25,19 +25,6 @@ interface NavLink {
   icon: NavIcon;
 }
 
-function deriveInitials(name: string): string {
-  const parts = name
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-  if (parts.length === 0) {
-    return 'MS';
-  }
-  const [first, second] = parts;
-  const initials = `${first.charAt(0) ?? ''}${second?.charAt(0) ?? ''}`.toUpperCase();
-  return initials || (name.charAt(0)?.toUpperCase() ?? 'MS');
-}
-
 export default function ProtectedNavBar({
   username,
   role,
@@ -47,6 +34,7 @@ export default function ProtectedNavBar({
 }: ProtectedNavBarProps) {
   const pathname = usePathname() || '';
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem('sims-nav-collapsed');
@@ -55,6 +43,10 @@ export default function ProtectedNavBar({
     }
   }, []);
 
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
+
   const toggleNav = () => {
     setIsCollapsed((prev) => {
       const next = !prev;
@@ -62,9 +54,11 @@ export default function ProtectedNavBar({
       return next;
     });
   };
+  const toggleMobileNav = () => {
+    setIsMobileOpen((prev) => !prev);
+  };
   const canSeeSupport = canAccessSupportPages(department, isSuperAdmin);
   const canConfigureSupport = canManageSupportSettings(department, role, isSuperAdmin);
-  const initials = deriveInitials(username);
   const portalLabel = getPortalLabel(department, isSuperAdmin);
   const merchantSuccessLinks: NavLink[] = canSeeSupport
     ? [
@@ -87,83 +81,119 @@ export default function ProtectedNavBar({
   const userMeta = role;
 
   return (
-    <nav className={`${styles.nav} ${isCollapsed ? styles.navCollapsed : ''}`}>
-      <div className={styles.navInner}>
-        <div className={styles.navHeader}>
-          <div className={styles.headerTop}>
-            <button
-              type="button"
-              className={styles.collapseButton}
-              onClick={toggleNav}
-              aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-              aria-pressed={isCollapsed}
-              title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-            >
-              {isCollapsed ? (
-                <ListCollapse className={styles.collapseIcon} aria-hidden="true" />
-              ) : (
-                <AlignJustify className={styles.collapseIcon} aria-hidden="true" />
-              )}
-            </button>
-            <div className={styles.brand}>
-              <div className={styles.brandIcon} aria-hidden="true">
-                <Image src="/assets/system-logo-v2.png" alt="Slurp SIMS logo" width={50} height={50} priority />
-              </div>
-              <div className={styles.brandName}>
-                <strong>SIMS</strong>
-                <span>{portalLabel}</span>
-              </div>
-            </div>
+    <>
+      <div className={styles.mobileTopNav}>
+        <button
+          type="button"
+          className={styles.mobileTopNavButton}
+          onClick={toggleMobileNav}
+          aria-controls="primary-navigation"
+          aria-expanded={isMobileOpen}
+          aria-label={isMobileOpen ? 'Close navigation' : 'Open navigation'}
+        >
+          {isMobileOpen ? (
+            <ListCollapse className={styles.collapseIcon} aria-hidden />
+          ) : (
+            <AlignJustify className={styles.collapseIcon} aria-hidden />
+          )}
+        </button>
+        <div className={styles.mobileTopNavBrand}>
+          <div className={styles.mobileTopNavLogo} aria-hidden="true">
+            <Image src="/assets/system-logo-v2.png" alt="Slurp SIMS logo" width={32} height={32} priority />
           </div>
-          <div className={styles.userCard}>
-            <div className={styles.userMeta}>
-              <span className={styles.userName}>{username}</span>
-              {userMeta ? <span className={styles.userRole}>{userMeta}</span> : null}
-            </div>
+          <div className={styles.mobileTopNavText}>
+            <span className={styles.mobileTopNavTitle}>SIMS</span>
+            <span className={styles.mobileTopNavSubtitle}>{portalLabel}</span>
           </div>
-        </div>
-        <div className={styles.navSections}>
-          {sections.map((section) => (
-            <div key={section.title} className={styles.section}>
-              <span className={styles.sectionTitle}>{section.title}</span>
-              <ul className={styles.sectionList}>
-                {section.links.map((link) => {
-                  const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
-                  const Icon = link.icon;
-                  return (
-                    <li key={link.href}>
-                      <Link
-                        href={link.href}
-                        className={`${styles.sectionLink} ${active ? styles.sectionLinkActive : ''}`}
-                        aria-current={active ? 'page' : undefined}
-                        aria-label={link.label}
-                        title={link.label}
-                      >
-                        <Icon className={styles.sectionLinkIcon} aria-hidden />
-                        <span className={styles.sectionLinkLabel}>{link.label}</span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-        <div className={styles.navFooter}>
-          <Link
-            href="/logout"
-            prefetch={false}
-            className={styles.logoutButton}
-            onClick={(event) => {
-              if (!window.confirm('Log out of SIMS?')) {
-                event.preventDefault();
-              }
-            }}
-          >
-            Log out
-          </Link>
         </div>
       </div>
-    </nav>
+      <button
+        type="button"
+        className={`${styles.mobileOverlay} ${isMobileOpen ? styles.mobileOverlayVisible : ''}`}
+        onClick={() => setIsMobileOpen(false)}
+        aria-label="Close navigation"
+        aria-hidden={!isMobileOpen}
+        tabIndex={isMobileOpen ? 0 : -1}
+      />
+      <nav
+        id="primary-navigation"
+        className={`${styles.nav} ${isCollapsed ? styles.navCollapsed : ''} ${
+          isMobileOpen ? styles.navMobileOpen : ''
+        }`}
+      >
+        <div className={styles.navInner}>
+          <div className={styles.navHeader}>
+            <div className={styles.headerTop}>
+              <button
+                type="button"
+                className={styles.collapseButton}
+                onClick={toggleNav}
+                aria-label={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+                aria-pressed={isCollapsed}
+                title={isCollapsed ? 'Expand navigation' : 'Collapse navigation'}
+              >
+                {isCollapsed ? (
+                  <ListCollapse className={styles.collapseIcon} aria-hidden />
+                ) : (
+                  <AlignJustify className={styles.collapseIcon} aria-hidden />
+                )}
+              </button>
+              <div className={styles.brand}>
+                <div className={styles.brandIcon} aria-hidden="true">
+                  <Image src="/assets/system-logo-v2.png" alt="Slurp SIMS logo" width={50} height={50} priority />
+                </div>
+                <div className={styles.brandName}>
+                  <strong>SIMS</strong>
+                  <span>{portalLabel}</span>
+                </div>
+              </div>
+            </div>
+            <div className={styles.userCard}>
+              <div className={styles.userMeta}>
+                <span className={styles.userName}>{username}</span>
+                {userMeta ? <span className={styles.userRole}>{userMeta}</span> : null}
+              </div>
+            </div>
+          </div>
+          <div className={styles.navSections}>
+            {sections.map((section) => (
+              <div key={section.title} className={styles.section}>
+                <span className={styles.sectionTitle}>{section.title}</span>
+                <ul className={styles.sectionList}>
+                  {section.links.map((link) => {
+                    const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
+                    const Icon = link.icon;
+                    return (
+                      <li key={link.href}>
+                        <Link
+                          href={link.href}
+                          className={`${styles.sectionLink} ${active ? styles.sectionLinkActive : ''}`}
+                          aria-current={active ? 'page' : undefined}
+                          aria-label={link.label}
+                          title={link.label}
+                          onClick={() => setIsMobileOpen(false)}
+                        >
+                          <Icon className={styles.sectionLinkIcon} aria-hidden />
+                          <span className={styles.sectionLinkLabel}>{link.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <div className={styles.navFooter}>
+            <Link
+              href="/logout"
+              prefetch={false}
+              className={styles.logoutButton}
+            >
+              Log out
+            </Link>
+          </div>
+        </div>
+      </nav>
+    </>
   );
 }
