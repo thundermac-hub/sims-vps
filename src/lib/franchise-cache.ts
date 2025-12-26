@@ -217,7 +217,123 @@ const countActiveOutlets = (value: unknown): number => {
   return outlets.reduce((total, outlet) => total + (isOutletActive(outlet.validUntil ?? null) ? 1 : 0), 0);
 };
 
-export async function listCachedFranchises(page: number, perPage: number): Promise<{
+const mapCacheRow = (row: FranchiseCacheRow): FranchiseSummary => {
+  const details = parseFranchiseDetails(row.franchise_json ?? null);
+  return {
+    fid: row.fid ?? details?.fid ?? null,
+    name: row.franchise_name ?? details?.name ?? null,
+    company: details?.company ?? null,
+    companyAddress: details?.companyAddress ?? null,
+    createdAt: details?.createdAt ?? null,
+    updatedAt: details?.updatedAt ?? null,
+    outlets: parseOutletList(row.outlets_json),
+  };
+};
+
+const mapCacheRows = (rows: FranchiseCacheRow[]): FranchiseSummary[] => rows.map(mapCacheRow);
+
+type SortKey = 'fid' | 'franchise' | 'outlets';
+type SortDirection = 'asc' | 'desc';
+type SortOptions = { key: SortKey; direction: SortDirection };
+
+const parseFidNumber = (value: string | null): number | null => {
+  const cleaned = (value ?? '').trim();
+  if (!cleaned) {
+    return null;
+  }
+  const parsed = Number.parseInt(cleaned, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const compareStrings = (left: string, right: string): number =>
+  left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' });
+
+const compareNullableStrings = (left: string | null, right: string | null): number => {
+  const leftValue = (left ?? '').trim().toLowerCase();
+  const rightValue = (right ?? '').trim().toLowerCase();
+  if (leftValue && rightValue) {
+    return compareStrings(leftValue, rightValue);
+  }
+  if (leftValue) {
+    return -1;
+  }
+  if (rightValue) {
+    return 1;
+  }
+  return 0;
+};
+
+const sortFranchises = (franchises: FranchiseSummary[], sort: SortOptions): FranchiseSummary[] => {
+  if (franchises.length <= 1) {
+    return franchises;
+  }
+  const direction = sort.direction === 'asc' ? 1 : -1;
+  const sorted = [...franchises];
+  sorted.sort((left, right) => {
+    if (sort.key === 'outlets') {
+      const leftCount = left.outlets.length;
+      const rightCount = right.outlets.length;
+      if (leftCount !== rightCount) {
+        return (leftCount - rightCount) * direction;
+      }
+      const fallbackName = compareNullableStrings(left.name, right.name);
+      if (fallbackName !== 0) {
+        return fallbackName * direction;
+      }
+      return compareNullableStrings(left.fid, right.fid) * direction;
+    }
+    if (sort.key === 'fid') {
+      const leftNumber = parseFidNumber(left.fid);
+      const rightNumber = parseFidNumber(right.fid);
+      if (leftNumber !== null && rightNumber !== null && leftNumber !== rightNumber) {
+        return (leftNumber - rightNumber) * direction;
+      }
+      if (leftNumber !== null && rightNumber === null) {
+        return -1 * direction;
+      }
+      if (leftNumber === null && rightNumber !== null) {
+        return 1 * direction;
+      }
+      const compared = compareNullableStrings(left.fid, right.fid);
+      if (compared !== 0) {
+        return compared * direction;
+      }
+      return compareNullableStrings(left.name, right.name) * direction;
+    }
+    const comparedName = compareNullableStrings(left.name, right.name);
+    if (comparedName !== 0) {
+      return comparedName * direction;
+    }
+    return compareNullableStrings(left.fid, right.fid) * direction;
+  });
+  return sorted;
+};
+
+const matchesFranchiseQuery = (franchise: FranchiseSummary, query: string): boolean => {
+  const trimmed = query.trim().toLowerCase();
+  if (!trimmed) {
+    return true;
+  }
+  const values: string[] = [];
+  if (franchise.fid) {
+    values.push(franchise.fid);
+  }
+  if (franchise.name) {
+    values.push(franchise.name);
+  }
+  franchise.outlets.forEach((outlet) => {
+    if (outlet.name) {
+      values.push(outlet.name);
+    }
+  });
+  return values.some((value) => value.toLowerCase().includes(trimmed));
+};
+
+export async function listCachedFranchises(
+  page: number,
+  perPage: number,
+  sort?: SortOptions,
+): Promise<{
   franchises: FranchiseSummary[];
   totalCount: number;
 }> {
@@ -226,31 +342,30 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
   const offset = (safePage - 1) * safePerPage;
   const supabase = getSupabaseAdminClient();
 
-  const { data, error, count } = await supabase
+  let query = supabase
     .from<FranchiseCacheRow>('franchise_cache')
     .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index', { count: 'exact' })
     .eq('is_active', true)
-    .gte('outlet_count', 1)
-    .order('import_index', { ascending: false })
-    .range(offset, offset + safePerPage - 1);
+    .gte('outlet_count', 1);
+
+  if (sort?.key === 'fid') {
+    query = query.order('CAST(fid AS UNSIGNED)', { ascending: sort.direction === 'asc' });
+  } else if (sort?.key === 'franchise') {
+    query = query.order('franchise_name', { ascending: sort.direction === 'asc' });
+  } else if (sort?.key === 'outlets') {
+    query = query.order('outlet_count', { ascending: sort.direction === 'asc' });
+  }
+
+  query = query.order('import_index', { ascending: false }).range(offset, offset + safePerPage - 1);
+
+  const { data, error, count } = await query;
 
   if (error) {
     throw error;
   }
 
   const rows = Array.isArray(data) ? data : data ? [data] : [];
-  const franchises = rows.map((row) => {
-    const details = parseFranchiseDetails(row.franchise_json ?? null);
-    return {
-      fid: row.fid ?? details?.fid ?? null,
-      name: row.franchise_name ?? details?.name ?? null,
-      company: details?.company ?? null,
-      companyAddress: details?.companyAddress ?? null,
-      createdAt: details?.createdAt ?? null,
-      updatedAt: details?.updatedAt ?? null,
-      outlets: parseOutletList(row.outlets_json),
-    };
-  });
+  const franchises = mapCacheRows(rows);
 
   return {
     franchises,
@@ -258,12 +373,47 @@ export async function listCachedFranchises(page: number, perPage: number): Promi
   };
 }
 
+export async function searchCachedFranchises(query: string, sort?: SortOptions): Promise<FranchiseSummary[]> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from<FranchiseCacheRow>('franchise_cache')
+    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index')
+    .eq('is_active', true)
+    .gte('outlet_count', 1)
+    .order('import_index', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const franchises = mapCacheRows(rows).filter((franchise) => matchesFranchiseQuery(franchise, trimmed));
+  if (sort) {
+    return sortFranchises(franchises, sort);
+  }
+  return franchises;
+}
+
 export async function getFranchiseMetrics(): Promise<{
   totalActiveOutlets: number;
 }> {
   const supabase = getSupabaseAdminClient();
   const rows = await supabase.query<{ total_active_outlets: number | null }>(
-    'SELECT COALESCE(SUM(active_outlet_count), 0) as total_active_outlets FROM franchise_cache WHERE is_active = 1',
+    `SELECT COALESCE(
+      SUM(
+        CASE
+          WHEN LOWER(JSON_UNQUOTE(JSON_EXTRACT(franchise_json, '$.test_account'))) IN ('true', '1')
+          THEN 0
+          ELSE active_outlet_count
+        END
+      ), 0
+    ) as total_active_outlets
+    FROM franchise_cache
+    WHERE is_active = 1`,
   );
   const totalActiveOutlets = Number(rows[0]?.total_active_outlets ?? 0);
   return {

@@ -1,8 +1,11 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useState, useTransition } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
 import ticketStyles from '../tickets/tickets.module.css';
+import RowsPerPageControls from '../tickets/RowsPerPageControls';
+import PaginationControlButtons from '../tickets/PaginationControlButtons';
 import styles from './merchants.module.css';
 import type { FranchiseSummary } from '@/lib/franchise';
 
@@ -14,6 +17,8 @@ interface MerchantsClientProps {
   totalPages: number | null;
   perPage: number;
   initialQuery?: string;
+  sortKey: SortKey;
+  sortDirection: SortDirection;
   dataUnavailable?: boolean;
 }
 
@@ -85,10 +90,12 @@ const buildFranchiseLink = (fid: string | null): string | null => {
   return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
 };
 
-const buildPageHref = (page: number, query: string, perPage: number): string => {
+const buildPageHref = (page: number, query: string, perPage: number, sort: SortConfig): string => {
   const params = new URLSearchParams();
   params.set('page', String(page));
   params.set('perPage', String(perPage));
+  params.set('sort', sort.key);
+  params.set('dir', sort.direction);
   if (query.trim()) {
     params.set('q', query.trim());
   }
@@ -96,6 +103,7 @@ const buildPageHref = (page: number, query: string, perPage: number): string => 
 };
 
 const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
+const SEARCH_DEBOUNCE_MS = 400;
 
 export default function MerchantsClient({
   franchises,
@@ -105,12 +113,15 @@ export default function MerchantsClient({
   totalPages,
   perPage,
   initialQuery,
+  sortKey,
+  sortDirection,
   dataUnavailable,
 }: MerchantsClientProps) {
   const router = useRouter();
-  const [isNavigating, startTransition] = useTransition();
   const [query, setQuery] = useState(initialQuery ?? '');
-  const trimmedQuery = query.trim().toLowerCase();
+  const trimmedQuery = query.trim();
+  const activeQuery = (initialQuery ?? '').trim();
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: sortKey, direction: sortDirection });
   const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isStartingImport, setIsStartingImport] = useState(false);
@@ -118,66 +129,42 @@ export default function MerchantsClient({
 
   const outletFranchises = useMemo(() => franchises.filter((franchise) => franchise.outlets.length > 0), [franchises]);
 
-  const filtered = useMemo(() => {
-    if (!trimmedQuery) {
-      return outletFranchises;
-    }
-    return outletFranchises.filter((franchise) => {
-      const values: string[] = [];
-      if (franchise.fid) {
-        values.push(franchise.fid);
-      }
-      if (franchise.name) {
-        values.push(franchise.name);
-      }
-      franchise.outlets.forEach((outlet) => {
-        if (outlet.name) {
-          values.push(outlet.name);
-        }
-        if (outlet.id) {
-          values.push(outlet.id);
-        }
-      });
-      return values.some((value) => value.toLowerCase().includes(trimmedQuery));
-    });
-  }, [outletFranchises, trimmedQuery]);
+  const filtered = outletFranchises;
+  const sortedFranchises = filtered;
 
   const totalPagesSafe = totalPages ?? 1;
-  const paginationPages = useMemo(() => {
-    if (totalPagesSafe <= 1) {
-      return [page];
-    }
-    const windowSize = 2;
-    let start = Math.max(1, page - windowSize);
-    let end = Math.min(totalPagesSafe, page + windowSize);
-    if (page <= windowSize) {
-      end = Math.min(totalPagesSafe, 1 + windowSize * 2);
-    }
-    if (page + windowSize >= totalPagesSafe) {
-      start = Math.max(1, totalPagesSafe - windowSize * 2);
-    }
-    const pages: number[] = [];
-    for (let current = start; current <= end; current += 1) {
-      pages.push(current);
-    }
-    return pages;
-  }, [page, totalPagesSafe]);
+  const previousPage = page > 1 ? page - 1 : null;
+  const nextPage = page < totalPagesSafe ? page + 1 : null;
 
-  const navigateTo = (nextPage: number, nextPerPage = perPage) => {
-    const href = buildPageHref(nextPage, query, nextPerPage);
-    startTransition(() => {
-      router.push(href);
-      router.refresh();
-    });
+  const handlePerPageChange = (formData: FormData) => {
+    const perPageCandidate = Number(formData.get('perPage'));
+    if (
+      !Number.isFinite(perPageCandidate) ||
+      !PER_PAGE_OPTIONS.includes(perPageCandidate as (typeof PER_PAGE_OPTIONS)[number])
+    ) {
+      return;
+    }
+    const nextPerPage = perPageCandidate;
+    const href = buildPageHref(1, query, nextPerPage, sortConfig);
+    router.push(href);
   };
 
-  const handlePerPageChange = (nextPerPage: number) => {
-    navigateTo(1, nextPerPage);
+  const handlePageChange = (formData: FormData) => {
+    const pageCandidate = Number(formData.get('page'));
+    if (!Number.isFinite(pageCandidate)) {
+      return;
+    }
+    const nextPageValue = Math.min(Math.max(1, Math.floor(pageCandidate)), totalPagesSafe);
+    if (nextPageValue === page) {
+      return;
+    }
+    const href = buildPageHref(nextPageValue, query, perPage, sortConfig);
+    router.push(href);
   };
 
   const visibleOutletCount = useMemo(
-    () => filtered.reduce((total, franchise) => total + franchise.outlets.length, 0),
-    [filtered],
+    () => sortedFranchises.reduce((total, franchise) => total + franchise.outlets.length, 0),
+    [sortedFranchises],
   );
 
   const startIndex = totalCount === 0 ? 0 : (page - 1) * perPage + 1;
@@ -186,7 +173,7 @@ export default function MerchantsClient({
 
   const emptyMessage = dataUnavailable
     ? 'Unable to load franchise data. Please refresh and try again.'
-    : trimmedQuery
+    : activeQuery
       ? 'No franchises match this search.'
       : totalCount === 0
         ? 'No cached franchise data yet. Run a manual import to load the latest list.'
@@ -229,6 +216,21 @@ export default function MerchantsClient({
   }, [initialQuery]);
 
   useEffect(() => {
+    setSortConfig({ key: sortKey, direction: sortDirection });
+  }, [sortKey, sortDirection]);
+
+  useEffect(() => {
+    if (trimmedQuery === activeQuery) {
+      return undefined;
+    }
+    const handle = setTimeout(() => {
+      const href = buildPageHref(1, trimmedQuery, perPage, sortConfig);
+      router.push(href);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [trimmedQuery, activeQuery, perPage, sortConfig, router]);
+
+  useEffect(() => {
     setOpenKeys([]);
   }, [franchises]);
 
@@ -259,6 +261,19 @@ export default function MerchantsClient({
     }
   };
 
+  const handleSort = (key: SortKey) => {
+    const nextConfig: SortConfig =
+      sortConfig.key === key
+        ? { key, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: key === 'fid' ? 'desc' : 'asc' };
+    setSortConfig(nextConfig);
+    const href = buildPageHref(page, query, perPage, nextConfig);
+    router.push(href);
+  };
+
+  const ariaSort = (key: SortKey) =>
+    sortConfig.key === key ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none';
+
   const progressPercent =
     importJob && typeof importJob.totalCount === 'number' && importJob.totalCount > 0
       ? Math.min(100, Math.round((importJob.processedCount / importJob.totalCount) * 100))
@@ -271,12 +286,7 @@ export default function MerchantsClient({
         <div className={styles.searchRow}>
           <div className={styles.searchField}>
             <span className={styles.searchIcon} aria-hidden="true">
-              <svg viewBox="0 0 20 20" role="presentation">
-                <path
-                  d="M8.5 3.25a5.25 5.25 0 1 1 0 10.5 5.25 5.25 0 0 1 0-10.5ZM2.5 8.5a6 6 0 1 0 10.8 3.6l3.6 3.6a.75.75 0 0 0 1.06-1.06l-3.6-3.6A6 6 0 0 0 2.5 8.5Z"
-                  fill="currentColor"
-                />
-              </svg>
+              <Search size={18} />
             </span>
             <input
               className={styles.searchInput}
@@ -293,15 +303,7 @@ export default function MerchantsClient({
             onClick={startImport}
             disabled={isStartingImport || importJob?.status === 'running'}
           >
-            <span className={styles.importIcon} aria-hidden="true">
-              <svg viewBox="0 0 20 20" role="presentation">
-                <path
-                  d="M10 3.25a6.75 6.75 0 1 1-5.6 3H2.5a.75.75 0 0 1 0-1.5h2.75c.3 0 .58.18.69.46A5.25 5.25 0 1 0 10 4.75c-.6 0-1.18.1-1.72.29a.75.75 0 1 1-.5-1.42A6.74 6.74 0 0 1 10 3.25Zm-7.5 4.5a.75.75 0 0 1 .75-.75h3.25a.75.75 0 0 1 .75.75v3.25a.75.75 0 0 1-1.5 0V8.8L3.28 11.32a.75.75 0 1 1-1.06-1.06L4.7 7.78H2.5a.75.75 0 0 1-.75-.75Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            {importJob?.status === 'running' ? 'Importing...' : 'Import latest data'}
+            {importJob?.status === 'running' ? 'Importing...' : 'Import Latest Data'}
           </button>
         </div>
         <div className={styles.importBar}>
@@ -357,24 +359,39 @@ export default function MerchantsClient({
           <span>{headerMeta}</span>
         </div>
         <div className={ticketStyles.tableWrapper}>
-          <table className={ticketStyles.table}>
+          <table className={`${ticketStyles.table} ${styles.merchantsTable}`}>
             <thead>
               <tr>
+                <th aria-sort={ariaSort('fid')}>
+                  <button type="button" className={styles.sortButton} onClick={() => handleSort('fid')}>
+                    FID
+                    <SortIcon active={sortConfig.key === 'fid'} direction={sortConfig.direction} />
+                  </button>
+                </th>
+                <th aria-sort={ariaSort('franchise')}>
+                  <button type="button" className={styles.sortButton} onClick={() => handleSort('franchise')}>
+                    Franchise
+                    <SortIcon active={sortConfig.key === 'franchise'} direction={sortConfig.direction} />
+                  </button>
+                </th>
+                <th aria-sort={ariaSort('outlets')}>
+                  <button type="button" className={styles.sortButton} onClick={() => handleSort('outlets')}>
+                    Outlets
+                    <SortIcon active={sortConfig.key === 'outlets'} direction={sortConfig.direction} />
+                  </button>
+                </th>
                 <th aria-hidden="true" />
-                <th>Franchise</th>
-                <th>FID</th>
-                <th>Outlets</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {sortedFranchises.length === 0 ? (
                 <tr>
-                  <td colSpan={3} className={ticketStyles.empty}>
+                  <td colSpan={4} className={ticketStyles.empty}>
                     {emptyMessage}
                   </td>
                 </tr>
               ) : (
-                filtered.map((franchise, index) => {
+                sortedFranchises.map((franchise, index) => {
                   const fid = franchise.fid ?? '';
                   const name = formatFranchiseName(franchise.name, franchise.fid);
                   const key = fid || name ? `${fid}-${name}` : `franchise-${index}`;
@@ -383,12 +400,33 @@ export default function MerchantsClient({
                   const rowId = `franchise-${index}`;
                   return (
                     <Fragment key={key}>
-                      <tr className={styles.tableRow}>
+                      <tr
+                        className={`${styles.tableRow} ${isOpen ? styles.tableRowExpanded : ''}`}
+                        onClick={() => toggleOpen(key)}
+                      >
+                        <td className={styles.fidCell}>
+                          {franchiseLink && fid ? (
+                            <a className={styles.fidLink} href={franchiseLink} target="_blank" rel="noreferrer">
+                              {fid}
+                            </a>
+                          ) : (
+                            <span>{fid || '-'}</span>
+                          )}
+                        </td>
+                        <td className={styles.franchiseMainCell}>
+                          <span className={styles.franchiseTitle}>{name}</span>
+                        </td>
+                        <td className={styles.outletCountCell}>
+                          <span className={styles.outletCountBadge}>{franchise.outlets.length}</span>
+                        </td>
                         <td className={styles.expandCell}>
                           <button
                             type="button"
                             className={styles.expandButton}
-                            onClick={() => toggleOpen(key)}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleOpen(key);
+                            }}
                             aria-expanded={isOpen}
                             aria-controls={rowId}
                           >
@@ -397,16 +435,9 @@ export default function MerchantsClient({
                             </span>
                           </button>
                         </td>
-                        <td className={styles.franchiseMainCell}>
-                          <span className={styles.franchiseTitle}>{name}</span>
-                        </td>
-                        <td className={styles.fidCell}>{fid ? `FID ${fid}` : '-'}</td>
-                        <td className={styles.outletCountCell}>
-                          <span className={styles.outletCountBadge}>{franchise.outlets.length}</span>
-                        </td>
                       </tr>
                       {isOpen ? (
-                        <tr className={styles.detailRow} id={rowId}>
+                        <tr className={`${styles.detailRow} ${styles.detailRowExpanded}`} id={rowId}>
                           <td colSpan={4} className={styles.detailCell}>
                             <div className={styles.detailGrid}>
                               <div className={styles.detailItem}>
@@ -423,16 +454,8 @@ export default function MerchantsClient({
                                 <span className={styles.detailLabel}>Created At</span>
                                 <span className={styles.detailValue}>{formatDateTime(franchise.createdAt ?? null)}</span>
                               </div>
-                              <div className={styles.detailItem}>
-                                <span className={styles.detailLabel}>Updated At</span>
-                                <span className={styles.detailValue}>{formatDateTime(franchise.updatedAt ?? null)}</span>
-                              </div>
                             </div>
-                            {franchiseLink ? (
-                              <a className={styles.detailLink} href={franchiseLink} target="_blank" rel="noreferrer">
-                                Open in Cloud
-                              </a>
-                            ) : null}
+                            <div className={styles.detailDivider} aria-hidden="true" />
                             <div className={styles.outletSection}>
                               <h4 className={styles.outletSectionTitle}>Outlets</h4>
                               <div className={styles.outletCards}>
@@ -476,12 +499,6 @@ export default function MerchantsClient({
                                           {formatDateTime(outlet.createdAt ?? null)}
                                         </span>
                                       </div>
-                                      <div className={styles.detailItem}>
-                                        <span className={styles.detailLabel}>Updated At</span>
-                                        <span className={styles.detailValue}>
-                                          {formatDateTime(outlet.updatedAt ?? null)}
-                                        </span>
-                                      </div>
                                     </div>
                                   </div>
                                 ))}
@@ -500,60 +517,18 @@ export default function MerchantsClient({
         <div className={ticketStyles.paginationBar}>
           <div className={ticketStyles.paginationPerPage}>
             <span className={ticketStyles.paginationLabel}>Rows per page</span>
-            <div className={ticketStyles.paginationPerPageOptions}>
-              {PER_PAGE_OPTIONS.map((option) =>
-                option === perPage ? (
-                  <span key={option} className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonActive}`}>
-                    {option}
-                  </span>
-                ) : (
-                  <button
-                    key={option}
-                    type="button"
-                    className={ticketStyles.paginationButton}
-                    onClick={() => handlePerPageChange(option)}
-                    disabled={isNavigating}
-                  >
-                    {option}
-                  </button>
-                ),
-              )}
-            </div>
+            <RowsPerPageControls options={PER_PAGE_OPTIONS} current={perPage} onChange={handlePerPageChange} />
           </div>
-          <div className={styles.paginationCenter}>
-            <span className={ticketStyles.paginationInfo}>
-              Showing {startIndex}-{endIndex} of {totalCount}
-            </span>
+          <div className={ticketStyles.paginationInfo}>
+            Showing {startIndex}-{endIndex} of {totalCount}
           </div>
-          <div className={ticketStyles.paginationControls}>
-            {page > 1 ? (
-              <button
-                type="button"
-                className={ticketStyles.paginationButton}
-                onClick={() => navigateTo(page - 1)}
-                disabled={isNavigating}
-              >
-                Previous
-              </button>
-            ) : (
-              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Previous</span>
-            )}
-            <span className={ticketStyles.paginationPageIndicator}>
-              Page {page} of {totalPagesSafe}
-            </span>
-            {page < totalPagesSafe ? (
-              <button
-                type="button"
-                className={ticketStyles.paginationButton}
-                onClick={() => navigateTo(page + 1)}
-                disabled={isNavigating}
-              >
-                Next
-              </button>
-            ) : (
-              <span className={`${ticketStyles.paginationButton} ${ticketStyles.paginationButtonDisabled}`}>Next</span>
-            )}
-          </div>
+          <PaginationControlButtons
+            page={page}
+            totalPages={totalPagesSafe}
+            previousPage={previousPage}
+            nextPage={nextPage}
+            onChange={handlePageChange}
+          />
         </div>
       </section>
 
@@ -584,3 +559,24 @@ type FranchiseImportJob = {
   totalCount: number | null;
   errorMessage: string | null;
 };
+
+type SortDirection = 'asc' | 'desc';
+type SortKey = 'fid' | 'franchise' | 'outlets';
+type SortConfig = { key: SortKey; direction: SortDirection };
+
+function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {
+  return (
+    <span className={styles.sortIcon} aria-hidden="true">
+      <svg viewBox="0 0 16 16" role="presentation">
+        <path
+          className={active && direction === 'asc' ? styles.sortArrowActive : styles.sortArrow}
+          d="M8 3l3 3H5l3-3Z"
+        />
+        <path
+          className={active && direction === 'desc' ? styles.sortArrowActive : styles.sortArrow}
+          d="M8 13l-3-3h6l-3 3Z"
+        />
+      </svg>
+    </span>
+  );
+}

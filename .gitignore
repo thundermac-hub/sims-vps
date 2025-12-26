@@ -12,3 +12,8 @@ yarn-debug.log*
 pnpm-debug.log*
 .env
 .env.*
+# Local dev helpers
+docker-compose.local.yml
+docker-compose.override.yml
+mysql-data/
+minio-data/

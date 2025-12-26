@@ -3,13 +3,15 @@ import styles from '../tickets/tickets.module.css';
 import MerchantsClient from './MerchantsClient';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessSupportPages } from '@/lib/branding';
-import { getFranchiseMetrics, listCachedFranchises } from '@/lib/franchise-cache';
+import { getFranchiseMetrics, listCachedFranchises, searchCachedFranchises } from '@/lib/franchise-cache';
 import type { FranchiseSummary } from '@/lib/franchise';
 
 export const dynamic = 'force-dynamic';
 
 const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_PER_PAGE = 25;
+const DEFAULT_SORT_KEY: SortKey = 'fid';
+const DEFAULT_SORT_DIRECTION: SortDirection = 'desc';
 
 const parsePage = (value: string | string[] | undefined): number => {
   if (Array.isArray(value)) {
@@ -36,19 +38,56 @@ const parsePerPage = (value: string | string[] | undefined): number => {
   return PER_PAGE_OPTIONS.includes(parsed as (typeof PER_PAGE_OPTIONS)[number]) ? parsed : DEFAULT_PER_PAGE;
 };
 
+const parseSortKey = (value: string | string[] | undefined): SortKey => {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (candidate === 'fid' || candidate === 'franchise' || candidate === 'outlets') {
+    return candidate;
+  }
+  return DEFAULT_SORT_KEY;
+};
+
+const parseSortDirection = (value: string | string[] | undefined): SortDirection => {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (candidate === 'asc' || candidate === 'desc') {
+    return candidate;
+  }
+  return DEFAULT_SORT_DIRECTION;
+};
+
 export default async function MerchantsPage({
   searchParams,
 }: {
-  searchParams?: { page?: string | string[]; q?: string | string[]; perPage?: string | string[] };
+  searchParams?:
+    | {
+        page?: string | string[];
+        q?: string | string[];
+        perPage?: string | string[];
+        sort?: string | string[];
+        dir?: string | string[];
+      }
+    | Promise<{
+        page?: string | string[];
+        q?: string | string[];
+        perPage?: string | string[];
+        sort?: string | string[];
+        dir?: string | string[];
+      }>;
 }) {
   const authUser = await getAuthenticatedUser();
   if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
     redirect('/profile');
   }
 
-  const page = parsePage(searchParams?.page);
-  const initialQuery = Array.isArray(searchParams?.q) ? searchParams?.q[0] ?? '' : searchParams?.q ?? '';
-  const perPage = parsePerPage(searchParams?.perPage);
+  const resolvedSearchParams = await searchParams;
+  const page = parsePage(resolvedSearchParams?.page);
+  const rawQuery = Array.isArray(resolvedSearchParams?.q)
+    ? resolvedSearchParams?.q[0] ?? ''
+    : resolvedSearchParams?.q ?? '';
+  const initialQuery = rawQuery.trim();
+  const perPage = parsePerPage(resolvedSearchParams?.perPage);
+  const sortKey = parseSortKey(resolvedSearchParams?.sort);
+  const sortDirection = parseSortDirection(resolvedSearchParams?.dir);
+  const hasQuery = initialQuery.length > 0;
 
   let dataLoadFailed = false;
   let franchises: FranchiseSummary[] = [];
@@ -58,16 +97,32 @@ export default async function MerchantsPage({
   let totalActiveOutlets = 0;
 
   try {
-    const pageResponse = await listCachedFranchises(page, perPage);
-    totalCount = pageResponse.totalCount;
-    totalPages = Math.max(1, Math.ceil(totalCount / perPage));
-    currentPage = Math.min(page, totalPages);
-    if (currentPage !== page) {
-      const fallbackResponse = await listCachedFranchises(currentPage, perPage);
-      franchises = fallbackResponse.franchises;
-      totalCount = fallbackResponse.totalCount;
+    if (hasQuery) {
+      const matchingFranchises = await searchCachedFranchises(initialQuery, {
+        key: sortKey,
+        direction: sortDirection,
+      });
+      totalCount = matchingFranchises.length;
+      totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+      currentPage = Math.min(page, totalPages);
+      const startIndex = totalCount === 0 ? 0 : (currentPage - 1) * perPage;
+      const endIndex = totalCount === 0 ? 0 : startIndex + perPage;
+      franchises = totalCount === 0 ? [] : matchingFranchises.slice(startIndex, endIndex);
     } else {
-      franchises = pageResponse.franchises;
+      const pageResponse = await listCachedFranchises(page, perPage, { key: sortKey, direction: sortDirection });
+      totalCount = pageResponse.totalCount;
+      totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+      currentPage = Math.min(page, totalPages);
+      if (currentPage !== page) {
+        const fallbackResponse = await listCachedFranchises(currentPage, perPage, {
+          key: sortKey,
+          direction: sortDirection,
+        });
+        franchises = fallbackResponse.franchises;
+        totalCount = fallbackResponse.totalCount;
+      } else {
+        franchises = pageResponse.franchises;
+      }
     }
   } catch (error) {
     dataLoadFailed = true;
@@ -96,7 +151,7 @@ export default async function MerchantsPage({
       </section>
 
       <MerchantsClient
-        key={`${currentPage}-${perPage}-${initialQuery}`}
+        key={`${currentPage}-${perPage}-${initialQuery}-${sortKey}-${sortDirection}`}
         franchises={franchises}
         page={currentPage}
         totalPages={totalPages}
@@ -104,8 +159,13 @@ export default async function MerchantsPage({
         perPage={perPage}
         totalActiveOutlets={totalActiveOutlets}
         initialQuery={initialQuery}
+        sortKey={sortKey}
+        sortDirection={sortDirection}
         dataUnavailable={dataLoadFailed}
       />
     </div>
   );
 }
+
+type SortKey = 'fid' | 'franchise' | 'outlets';
+type SortDirection = 'asc' | 'desc';
