@@ -57,14 +57,10 @@
   background: rgba(239, 68, 68, 0.12);
 }
 
-.chevron {
-  display: inline-block;
-  font-size: 14px;
-  transition: transform 0.2s ease;
-}
-
-.chevronOpen {
-  transform: rotate(90deg);
+.expandIcon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
 }
 
 .franchiseMainCell {

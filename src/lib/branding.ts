@@ -12,7 +12,7 @@ export function getPortalLabel(department: string | null, isSuperAdmin: boolean)
   if (department && PORTAL_LABELS[department]) {
     return PORTAL_LABELS[department];
   }
-  return 'Team Portal';
+  return 'Team';
 }
 
 export function getDepartmentDisplayName(department: string | null): string {

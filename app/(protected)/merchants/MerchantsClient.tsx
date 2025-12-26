@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { Minus, Plus, Search } from 'lucide-react';
 import ticketStyles from '../tickets/tickets.module.css';
 import RowsPerPageControls from '../tickets/RowsPerPageControls';
 import PaginationControlButtons from '../tickets/PaginationControlButtons';
@@ -427,12 +427,15 @@ export default function MerchantsClient({
                               event.stopPropagation();
                               toggleOpen(key);
                             }}
+                            aria-label={isOpen ? 'Collapse franchise details' : 'Expand franchise details'}
                             aria-expanded={isOpen}
                             aria-controls={rowId}
                           >
-                            <span className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ''}`} aria-hidden="true">
-                              &gt;
-                            </span>
+                            {isOpen ? (
+                              <Minus className={styles.expandIcon} size={16} aria-hidden="true" />
+                            ) : (
+                              <Plus className={styles.expandIcon} size={16} aria-hidden="true" />
+                            )}
                           </button>
                         </td>
                       </tr>
