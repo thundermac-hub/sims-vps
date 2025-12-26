@@ -452,12 +452,12 @@
   .navSections {
     flex-direction: column;
     flex-wrap: nowrap;
-    gap: 10px;
+    gap: 6px;
   }
 
   .section {
     flex: 0 0 auto;
-    gap: 6px;
+    gap: 4px;
   }
 
   .sectionList {
@@ -523,9 +523,11 @@
 @media (max-width: 560px) {
   .navSections {
     flex-direction: column;
+    gap: 6px;
   }
 
   .section {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
+    gap: 4px;
   }
 }
