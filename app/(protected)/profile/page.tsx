@@ -26,9 +26,6 @@ export default async function ProfilePage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <div className={styles.avatar} aria-hidden="true">
-          {displayName.slice(0, 2).toUpperCase()}
-        </div>
         <div className={styles.titleGroup}>
           <h1 className={styles.title}>Account Profile</h1>
           <p className={styles.subtitle}>
@@ -38,13 +35,13 @@ export default async function ProfilePage() {
       </header>
 
       <section className={styles.details}>
+        <article className={`${styles.detailCard} ${styles.detailCardWide}`}>
+          <p className={styles.detailLabel}>Email</p>
+          <p className={styles.detailValue}>{email}</p>
+        </article>
         <article className={styles.detailCard}>
           <p className={styles.detailLabel}>Name</p>
           <p className={styles.detailValue}>{displayName}</p>
-        </article>
-        <article className={styles.detailCard}>
-          <p className={styles.detailLabel}>Email</p>
-          <p className={styles.detailValue}>{email}</p>
         </article>
         <article className={styles.detailCard}>
           <p className={styles.detailLabel}>Role</p>
@@ -53,10 +50,6 @@ export default async function ProfilePage() {
         <article className={styles.detailCard}>
           <p className={styles.detailLabel}>Department</p>
           <p className={styles.detailValue}>{department}</p>
-        </article>
-        <article className={styles.detailCard}>
-          <p className={styles.detailLabel}>Timezone</p>
-          <p className={styles.detailValue}>{env.timezone}</p>
         </article>
         {userRecord?.created_at ? (
           <article className={styles.detailCard}>

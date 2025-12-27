@@ -17,6 +17,10 @@
   background: #ffffff;
 }
 
+.tableWrapper {
+  overflow: visible;
+}
+
 .merchantsTable thead th {
   background: #f8fafc;
   color: #475569;
@@ -70,6 +74,7 @@
 
 .franchiseTitle {
   font-size: 14px;
+  word-break: break-word;
 }
 
 .fidCell {
@@ -549,6 +554,44 @@
 }
 
 @media (max-width: 720px) {
+  .tableWrapper {
+    overflow: visible;
+  }
+
+  .merchantsTable {
+    min-width: 100%;
+    table-layout: fixed;
+  }
+
+  .merchantsTable thead th,
+  .merchantsTable tbody td {
+    padding: 8px;
+  }
+
+  .fidCell {
+    font-size: 11px;
+  }
+
+  .franchiseTitle {
+    font-size: 13px;
+  }
+
+  .outletCountBadge {
+    min-width: 22px;
+    height: 20px;
+    padding: 0 6px;
+    font-size: 11px;
+  }
+
+  .expandCell {
+    width: 36px;
+  }
+
+  .expandButton {
+    width: 28px;
+    height: 28px;
+  }
+
   .detailGrid {
     grid-template-columns: 1fr;
   }

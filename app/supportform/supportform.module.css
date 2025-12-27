@@ -511,13 +511,19 @@
   }
 
   .actions {
-    flex-direction: column;
+    flex-direction: row;
     gap: 12px;
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .actions .btnPrimary {
+    align-self: auto;
+    width: auto;
   }
 
   .actionsLeft {
-    justify-content: space-between;
+    justify-content: flex-start;
   }
 }
 .inlineLinkStandalone {

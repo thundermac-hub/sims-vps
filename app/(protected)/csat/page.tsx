@@ -113,7 +113,7 @@ export default async function CsatDashboardPage() {
           <ul className={styles.breakdownList}>
             {CSAT_SCORES.map((score) => {
               const count = analyticsToRender.supportBreakdown[score] ?? 0;
-              const width = supportMax === 0 ? 0 : Math.max(6, (count / supportMax) * 100);
+              const width = count === 0 || supportMax === 0 ? 0 : Math.max(6, (count / supportMax) * 100);
               return (
                 <li key={score} className={styles.breakdownItem}>
                   <div className={styles.breakdownRowHeader}>
@@ -142,7 +142,7 @@ export default async function CsatDashboardPage() {
           <ul className={styles.breakdownList}>
             {CSAT_SCORES.map((score) => {
               const count = analyticsToRender.productBreakdown[score] ?? 0;
-              const width = productMax === 0 ? 0 : Math.max(6, (count / productMax) * 100);
+              const width = count === 0 || productMax === 0 ? 0 : Math.max(6, (count / productMax) * 100);
               return (
                 <li key={score} className={styles.breakdownItem}>
                   <div className={styles.breakdownRowHeader}>

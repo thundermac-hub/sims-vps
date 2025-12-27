@@ -189,7 +189,7 @@ export default function ProtectedNavBar({
               prefetch={false}
               className={styles.logoutButton}
             >
-              Log out
+              Log Out
             </Link>
           </div>
         </div>

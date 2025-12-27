@@ -1623,39 +1623,13 @@
     justify-content: space-between;
   }
 
-  .table thead {
-    display: none;
+  .tableWrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .table {
-    display: block;
-    width: 100%;
-  }
-
-  .table tbody,
-  .table tr,
-  .table td {
-    display: block;
-    width: 100%;
-  }
-
-  .table tr {
-    border-bottom: 1px solid #f1f5f9;
-    padding: 12px 0;
-  }
-
-  .table td {
-    padding: 6px 0;
-  }
-
-  .table td::before {
-    content: attr(data-label);
-    display: block;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #94a3b8;
-    margin-bottom: 4px;
+    min-width: 900px;
   }
 
   .tableCard {

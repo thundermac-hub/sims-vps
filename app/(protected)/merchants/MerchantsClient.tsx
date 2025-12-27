@@ -306,37 +306,23 @@ export default function MerchantsClient({
             {importJob?.status === 'running' ? 'Importing...' : 'Import Latest Data'}
           </button>
         </div>
-        <div className={styles.importBar}>
-          <div className={styles.importStatus}>
-            {importJob ? (
-              <>
+        {!showImportModal ? (
+          <div className={styles.importBar}>
+            <div className={styles.importStatus}>
+              {importJob ? (
                 <span className={styles.importLabel}>
-                  {importJob.status === 'running'
-                    ? `Processed ${importJob.processedCount} of ${importJob.totalCount ?? '...'}`
-                    : importJob.status === 'completed'
-                      ? 'Import complete'
-                      : 'Import failed'}
+                  {importJob.status === 'completed' ? 'Import complete' : 'Import failed'}
                 </span>
-                {importJob.status === 'running' && progressPercent !== null ? (
-                  <span className={styles.importPercent}>{progressPercent}%</span>
-                ) : null}
-              </>
-            ) : isStartingImport ? (
-              <span className={styles.importLabel}>Starting import...</span>
-            ) : (
-              <span className={styles.importLabel}>Use the button to refresh the cached list.</span>
-            )}
-          </div>
-          {importJob?.status === 'running' && progressPercent !== null ? (
-            <div className={styles.progressBar} aria-hidden="true">
-              <span className={styles.progressFill} style={{ width: `${progressPercent}%` }} />
+              ) : (
+                <span className={styles.importLabel}>Use the button to refresh the cached list.</span>
+              )}
             </div>
-          ) : null}
-          {importError ? <p className={styles.importError}>{importError}</p> : null}
-          {importJob?.status === 'failed' && importJob.errorMessage ? (
-            <p className={styles.importError}>{importJob.errorMessage}</p>
-          ) : null}
-        </div>
+            {importError ? <p className={styles.importError}>{importError}</p> : null}
+            {importJob?.status === 'failed' && importJob.errorMessage ? (
+              <p className={styles.importError}>{importJob.errorMessage}</p>
+            ) : null}
+          </div>
+        ) : null}
         <div className={styles.metricsGrid}>
           <div className={styles.metricCard}>
             <span className={styles.metricLabel}>Total Franchises</span>
@@ -358,7 +344,7 @@ export default function MerchantsClient({
           <h2>Franchises</h2>
           <span>{headerMeta}</span>
         </div>
-        <div className={ticketStyles.tableWrapper}>
+        <div className={`${ticketStyles.tableWrapper} ${styles.tableWrapper}`}>
           <table className={`${ticketStyles.table} ${styles.merchantsTable}`}>
             <thead>
               <tr>

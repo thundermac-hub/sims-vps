@@ -18,18 +18,6 @@
   gap: 16px;
 }
 
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
-  background: linear-gradient(160deg, #f97316 0%, #ef4444 100%);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 28px;
-  font-weight: 700;
-}
-
 .titleGroup {
   display: flex;
   flex-direction: column;
@@ -60,6 +48,10 @@
   border-radius: 16px;
   padding: 16px 18px;
   border: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.detailCardWide {
+  grid-column: span 2;
 }
 
 .detailLabel {
@@ -183,4 +175,10 @@
 
 .secondaryButton:hover {
   opacity: 0.85;
+}
+
+@media (max-width: 560px) {
+  .details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
