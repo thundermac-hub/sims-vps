@@ -321,6 +321,9 @@ const matchesFranchiseQuery = (franchise: FranchiseSummary, query: string): bool
   if (franchise.name) {
     values.push(franchise.name);
   }
+  if (franchise.company) {
+    values.push(franchise.company);
+  }
   franchise.outlets.forEach((outlet) => {
     if (outlet.name) {
       values.push(outlet.name);
@@ -371,6 +374,61 @@ export async function listCachedFranchises(
     franchises,
     totalCount: typeof count === 'number' ? count : 0,
   };
+}
+
+export async function getCachedFranchiseByFid(fid: string): Promise<FranchiseSummary | null> {
+  const cleaned = (fid ?? '').trim();
+  if (!cleaned) {
+    return null;
+  }
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from<FranchiseCacheRow>('franchise_cache')
+    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index')
+    .eq('is_active', true)
+    .eq('fid', cleaned)
+    .order('import_index', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return mapCacheRow(data);
+}
+
+export async function listAllCachedFranchises(sort?: SortOptions): Promise<FranchiseSummary[]> {
+  const supabase = getSupabaseAdminClient();
+
+  let query = supabase
+    .from<FranchiseCacheRow>('franchise_cache')
+    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index')
+    .eq('is_active', true)
+    .gte('outlet_count', 1);
+
+  if (sort?.key === 'fid') {
+    query = query.order('CAST(fid AS UNSIGNED)', { ascending: sort.direction === 'asc' });
+  } else if (sort?.key === 'franchise') {
+    query = query.order('franchise_name', { ascending: sort.direction === 'asc' });
+  } else if (sort?.key === 'outlets') {
+    query = query.order('outlet_count', { ascending: sort.direction === 'asc' });
+  }
+
+  query = query.order('import_index', { ascending: false });
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  return mapCacheRows(rows);
 }
 
 export async function searchCachedFranchises(query: string, sort?: SortOptions): Promise<FranchiseSummary[]> {

@@ -7,6 +7,10 @@ interface SearchKeywordInputProps {
   name?: string;
   placeholder?: string;
   defaultValue?: string;
+  className?: string;
+  ariaLabel?: string;
+  type?: string;
+  debounceMs?: number;
   onSearch: (formData: FormData) => void | Promise<void>;
 }
 
@@ -16,6 +20,10 @@ export default function SearchKeywordInput({
   name = 'q',
   placeholder = 'Search…',
   defaultValue = '',
+  className,
+  ariaLabel = 'Keyword search',
+  type = 'text',
+  debounceMs = DEBOUNCE_MS,
   onSearch,
 }: SearchKeywordInputProps) {
   const [value, setValue] = useState(defaultValue);
@@ -48,7 +56,7 @@ export default function SearchKeywordInput({
     if (value === lastSubmittedRef.current) {
       return undefined;
     }
-    const handle = setTimeout(() => {
+    const triggerSearch = () => {
       lastSubmittedRef.current = value;
       const formData = new FormData();
       formData.set('intent', 'instant');
@@ -63,17 +71,26 @@ export default function SearchKeywordInput({
           router.refresh();
         })();
       });
-    }, DEBOUNCE_MS);
+    };
+
+    if (debounceMs <= 0) {
+      triggerSearch();
+      return undefined;
+    }
+
+    const handle = setTimeout(triggerSearch, debounceMs);
     return () => clearTimeout(handle);
-  }, [value, name, onSearch, startTransition, router]);
+  }, [value, name, onSearch, startTransition, router, debounceMs]);
 
   return (
     <input
       name={name}
       placeholder={placeholder}
+      className={className}
+      type={type}
       value={value}
       onChange={(event) => setValue(event.target.value)}
-      aria-label="Keyword search"
+      aria-label={ariaLabel}
       autoComplete="off"
     />
   );

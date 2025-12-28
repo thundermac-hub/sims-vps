@@ -18,7 +18,7 @@
 }
 
 .tableWrapper {
-  overflow: visible;
+  overflow-x: auto;
 }
 
 .merchantsTable thead th {
@@ -39,7 +39,6 @@
 }
 
 .expandCell {
-  width: 48px;
   text-align: right;
 }
 
@@ -75,6 +74,7 @@
 .franchiseTitle {
   font-size: 14px;
   word-break: break-word;
+  display: block;
 }
 
 .fidCell {
@@ -170,6 +170,21 @@
   margin-bottom: 20px;
 }
 
+.franchiseLink {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b91c1c;
+  text-decoration: none;
+}
+
+.franchiseLink:hover {
+  text-decoration: underline;
+  color: #991b1b;
+}
+
 .detailItem {
   display: flex;
   flex-direction: column;
@@ -230,6 +245,41 @@
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.outletHeaderMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.outletStatus {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.outletStatusActive {
+  color: #047857;
+  background: #ecfdf3;
+  border-color: #a7f3d0;
+}
+
+.outletStatusExpiring {
+  color: #a16207;
+  background: #fef9c3;
+  border-color: #fde047;
+}
+
+.outletStatusExpired {
+  color: #b91c1c;
+  background: #fee2e2;
+  border-color: #fca5a5;
 }
 
 .outletName {
@@ -348,6 +398,82 @@
   font-size: 13px;
   background: transparent;
   color: #111827;
+}
+
+.exportMenu {
+  position: relative;
+}
+
+.exportButton {
+  list-style: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.exportButton::-webkit-details-marker {
+  display: none;
+}
+
+.exportButton::marker {
+  content: '';
+}
+
+.exportMenu[open] .exportButton {
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+}
+
+.exportIcon,
+.exportCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.exportList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 180px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 20;
+}
+
+.exportItem {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  text-decoration: none;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f9fafb;
+}
+
+.exportItem:hover {
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 
 .importCta {
@@ -555,7 +681,7 @@
 
 @media (max-width: 720px) {
   .tableWrapper {
-    overflow: visible;
+    overflow-x: auto;
   }
 
   .merchantsTable {
@@ -604,6 +730,20 @@
   .searchRow {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .exportMenu {
+    width: 100%;
+  }
+
+  .exportButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .exportList {
+    left: 0;
+    right: 0;
   }
 
   .importCta {

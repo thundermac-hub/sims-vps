@@ -5,7 +5,18 @@ import type { ComponentType } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AlignJustify, BarChart3, LayoutDashboard, ListCollapse, Sliders, Store, Ticket, User, Users } from 'lucide-react';
+import {
+  AlignJustify,
+  BarChart3,
+  History,
+  LayoutDashboard,
+  ListCollapse,
+  Sliders,
+  Store,
+  Ticket,
+  User,
+  Users,
+} from 'lucide-react';
 import styles from './layout.module.css';
 import { getPortalLabel, canAccessSupportPages, canManageSupportSettings } from '@/lib/branding';
 
@@ -64,6 +75,7 @@ export default function ProtectedNavBar({
     ? [
         { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
         { href: '/tickets', label: 'Tickets', icon: Ticket },
+        ...(canConfigureSupport ? [{ href: '/audit-trail', label: 'Audit Trail', icon: History }] : []),
         { href: '/csat', label: 'CSAT', icon: BarChart3 },
         ...(canConfigureSupport ? [{ href: '/support-settings', label: 'Support Settings', icon: Sliders }] : []),
       ]

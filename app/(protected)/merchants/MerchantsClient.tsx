@@ -1,13 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import { Minus, Plus, Search } from 'lucide-react';
+import { Fragment, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { ChevronDown, Download, ExternalLink, Minus, Plus, Search } from 'lucide-react';
 import ticketStyles from '../tickets/tickets.module.css';
 import RowsPerPageControls from '../tickets/RowsPerPageControls';
 import PaginationControlButtons from '../tickets/PaginationControlButtons';
+import SearchKeywordInput from '../tickets/SearchKeywordInput';
 import styles from './merchants.module.css';
 import type { FranchiseSummary } from '@/lib/franchise';
+import { PER_PAGE_OPTIONS, type SortDirection, type SortKey } from './constants';
 
 interface MerchantsClientProps {
   franchises: FranchiseSummary[];
@@ -20,6 +23,10 @@ interface MerchantsClientProps {
   sortKey: SortKey;
   sortDirection: SortDirection;
   dataUnavailable?: boolean;
+  onSearch: (formData: FormData) => void | Promise<void>;
+  onPerPageChange: (formData: FormData) => void | Promise<void>;
+  onPageChange: (formData: FormData) => void | Promise<void>;
+  onSortChange: (formData: FormData) => void | Promise<void>;
 }
 
 const formatOutletName = (name: string | null): string => {
@@ -82,6 +89,26 @@ const formatDateTime = (value: string | null): string => {
   return `${datePart} ${timePart}`;
 };
 
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+
+type OutletStatusTone = 'active' | 'expiring' | 'expired';
+
+const getOutletStatus = (validUntil: string | null): { label: string; tone: OutletStatusTone } => {
+  const date = parseDateTime(validUntil);
+  if (!date) {
+    return { label: 'Active', tone: 'active' };
+  }
+  const now = Date.now();
+  const diff = date.getTime() - now;
+  if (diff < 0) {
+    return { label: 'Expired', tone: 'expired' };
+  }
+  if (diff <= THIRTY_DAYS_MS) {
+    return { label: 'Expiring Soon', tone: 'expiring' };
+  }
+  return { label: 'Active', tone: 'active' };
+};
+
 const buildFranchiseLink = (fid: string | null): string | null => {
   const cleaned = (fid ?? '').trim();
   if (!cleaned) {
@@ -90,20 +117,13 @@ const buildFranchiseLink = (fid: string | null): string | null => {
   return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
 };
 
-const buildPageHref = (page: number, query: string, perPage: number, sort: SortConfig): string => {
+const buildExportHref = (format: 'csv' | 'pdf', sort: SortConfig): string => {
   const params = new URLSearchParams();
-  params.set('page', String(page));
-  params.set('perPage', String(perPage));
+  params.set('format', format);
   params.set('sort', sort.key);
   params.set('dir', sort.direction);
-  if (query.trim()) {
-    params.set('q', query.trim());
-  }
-  return `?${params.toString()}`;
+  return `/api/merchants/export?${params.toString()}`;
 };
-
-const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
-const SEARCH_DEBOUNCE_MS = 400;
 
 export default function MerchantsClient({
   franchises,
@@ -116,16 +136,20 @@ export default function MerchantsClient({
   sortKey,
   sortDirection,
   dataUnavailable,
+  onSearch,
+  onPerPageChange,
+  onPageChange,
+  onSortChange,
 }: MerchantsClientProps) {
   const router = useRouter();
-  const [query, setQuery] = useState(initialQuery ?? '');
-  const trimmedQuery = query.trim();
+  const [, startTransition] = useTransition();
   const activeQuery = (initialQuery ?? '').trim();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: sortKey, direction: sortDirection });
   const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isStartingImport, setIsStartingImport] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
+  const exportMenuRef = useRef<HTMLDetailsElement | null>(null);
 
   const outletFranchises = useMemo(() => franchises.filter((franchise) => franchise.outlets.length > 0), [franchises]);
 
@@ -135,32 +159,6 @@ export default function MerchantsClient({
   const totalPagesSafe = totalPages ?? 1;
   const previousPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPagesSafe ? page + 1 : null;
-
-  const handlePerPageChange = (formData: FormData) => {
-    const perPageCandidate = Number(formData.get('perPage'));
-    if (
-      !Number.isFinite(perPageCandidate) ||
-      !PER_PAGE_OPTIONS.includes(perPageCandidate as (typeof PER_PAGE_OPTIONS)[number])
-    ) {
-      return;
-    }
-    const nextPerPage = perPageCandidate;
-    const href = buildPageHref(1, query, nextPerPage, sortConfig);
-    router.push(href);
-  };
-
-  const handlePageChange = (formData: FormData) => {
-    const pageCandidate = Number(formData.get('page'));
-    if (!Number.isFinite(pageCandidate)) {
-      return;
-    }
-    const nextPageValue = Math.min(Math.max(1, Math.floor(pageCandidate)), totalPagesSafe);
-    if (nextPageValue === page) {
-      return;
-    }
-    const href = buildPageHref(nextPageValue, query, perPage, sortConfig);
-    router.push(href);
-  };
 
   const visibleOutletCount = useMemo(
     () => sortedFranchises.reduce((total, franchise) => total + franchise.outlets.length, 0),
@@ -212,23 +210,8 @@ export default function MerchantsClient({
   }, [importJob?.id, importJob?.status]);
 
   useEffect(() => {
-    setQuery(initialQuery ?? '');
-  }, [initialQuery]);
-
-  useEffect(() => {
     setSortConfig({ key: sortKey, direction: sortDirection });
   }, [sortKey, sortDirection]);
-
-  useEffect(() => {
-    if (trimmedQuery === activeQuery) {
-      return undefined;
-    }
-    const handle = setTimeout(() => {
-      const href = buildPageHref(1, trimmedQuery, perPage, sortConfig);
-      router.push(href);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(handle);
-  }, [trimmedQuery, activeQuery, perPage, sortConfig, router]);
 
   useEffect(() => {
     setOpenKeys([]);
@@ -243,6 +226,35 @@ export default function MerchantsClient({
       router.refresh();
     }
   }, [importJob?.status, router]);
+
+  useEffect(() => {
+    const handlePointer = (event: PointerEvent) => {
+      const menu = exportMenuRef.current;
+      if (!menu || !menu.open) {
+        return;
+      }
+      if (event.target instanceof Node && !menu.contains(event.target)) {
+        menu.open = false;
+      }
+    };
+
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      const menu = exportMenuRef.current;
+      if (menu && menu.open) {
+        menu.open = false;
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, []);
 
   const startImport = async () => {
     setImportError(null);
@@ -267,8 +279,20 @@ export default function MerchantsClient({
         ? { key, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' }
         : { key, direction: key === 'fid' ? 'desc' : 'asc' };
     setSortConfig(nextConfig);
-    const href = buildPageHref(page, query, perPage, nextConfig);
-    router.push(href);
+    startTransition(() => {
+      const formData = new FormData();
+      formData.set('intent', 'instant');
+      formData.set('sort', nextConfig.key);
+      formData.set('dir', nextConfig.direction);
+      void (async () => {
+        try {
+          await onSortChange(formData);
+        } catch (error) {
+          console.error('Failed to update sort order', error);
+        }
+        router.refresh();
+      })();
+    });
   };
 
   const ariaSort = (key: SortKey) =>
@@ -279,6 +303,8 @@ export default function MerchantsClient({
       ? Math.min(100, Math.round((importJob.processedCount / importJob.totalCount) * 100))
       : null;
   const showImportModal = isStartingImport || importJob?.status === 'running';
+  const exportCsvHref = buildExportHref('csv', sortConfig);
+  const exportPdfHref = buildExportHref('pdf', sortConfig);
 
   return (
     <>
@@ -288,15 +314,33 @@ export default function MerchantsClient({
             <span className={styles.searchIcon} aria-hidden="true">
               <Search size={18} />
             </span>
-            <input
+            <SearchKeywordInput
               className={styles.searchInput}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search by franchise, FID, or outlet"
               type="search"
-              aria-label="Search by franchise, FID, or outlet"
+              defaultValue={initialQuery ?? ''}
+              placeholder="Search by franchise, company, FID, or outlet"
+              ariaLabel="Search by franchise, company, FID, or outlet"
+              debounceMs={400}
+              onSearch={onSearch}
             />
           </div>
+          <details className={styles.exportMenu} ref={exportMenuRef}>
+            <summary className={styles.exportButton} aria-label="Export merchants">
+              <span className={styles.exportIcon} aria-hidden="true">
+                <Download size={16} />
+              </span>
+              Export
+              <ChevronDown size={14} className={styles.exportCaret} aria-hidden="true" />
+            </summary>
+            <div className={styles.exportList}>
+              <a className={styles.exportItem} href={exportCsvHref}>
+                Export as CSV
+              </a>
+              <a className={styles.exportItem} href={exportPdfHref} target="_blank" rel="noreferrer">
+                Export as PDF
+              </a>
+            </div>
+          </details>
           <button
             type="button"
             className={styles.importCta}
@@ -401,6 +445,15 @@ export default function MerchantsClient({
                         </td>
                         <td className={styles.franchiseMainCell}>
                           <span className={styles.franchiseTitle}>{name}</span>
+                          {fid ? (
+                            <Link
+                              className={styles.franchiseLink}
+                              href={`/merchants/${encodeURIComponent(fid)}`}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              View Franchise
+                            </Link>
+                          ) : null}
                         </td>
                         <td className={styles.outletCountCell}>
                           <span className={styles.outletCountBadge}>{franchise.outlets.length}</span>
@@ -448,49 +501,68 @@ export default function MerchantsClient({
                             <div className={styles.outletSection}>
                               <h4 className={styles.outletSectionTitle}>Outlets</h4>
                               <div className={styles.outletCards}>
-                                {franchise.outlets.map((outlet, outletIndex) => (
-                                  <div
-                                    key={`${fid || name}-outlet-${outlet.id ?? outletIndex}`}
-                                    className={styles.outletCard}
-                                  >
-                                    <div className={styles.outletHeader}>
-                                      <div>
-                                        <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
-                                        <span className={styles.outletSub}>{formatOutletId(outlet.id)}</span>
+                                {franchise.outlets.map((outlet, outletIndex) => {
+                                  const outletStatus = getOutletStatus(outlet.validUntil ?? null);
+                                  return (
+                                    <div
+                                      key={`${fid || name}-outlet-${outlet.id ?? outletIndex}`}
+                                      className={styles.outletCard}
+                                    >
+                                      <div className={styles.outletHeader}>
+                                        <div>
+                                          <span className={styles.outletName}>{formatOutletName(outlet.name)}</span>
+                                          <span className={styles.outletSub}>{formatOutletId(outlet.id)}</span>
+                                        </div>
+                                        <div className={styles.outletHeaderMeta}>
+                                          <span
+                                            className={`${styles.outletStatus} ${
+                                              outletStatus.tone === 'expired'
+                                                ? styles.outletStatusExpired
+                                                : outletStatus.tone === 'expiring'
+                                                  ? styles.outletStatusExpiring
+                                                  : styles.outletStatusActive
+                                            }`}
+                                          >
+                                            {outletStatus.label}
+                                          </span>
+                                          {outlet.mapsUrl ? (
+                                            <a
+                                              className={styles.mapLink}
+                                              href={outlet.mapsUrl}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                            >
+                                              View on Maps
+                                              <span className={styles.mapLinkIcon} aria-hidden="true">
+                                                <ExternalLink />
+                                              </span>
+                                            </a>
+                                          ) : null}
+                                        </div>
                                       </div>
-                                      {outlet.mapsUrl ? (
-                                        <a
-                                          className={styles.mapLink}
-                                          href={outlet.mapsUrl}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                        >
-                                          View on Maps
-                                        </a>
-                                      ) : null}
+                                      <div className={styles.detailGrid}>
+                                        <div className={styles.detailItem}>
+                                          <span className={styles.detailLabel}>Address</span>
+                                          <span className={styles.detailValue}>
+                                            {formatDetailValue(outlet.address ?? null)}
+                                          </span>
+                                        </div>
+                                        <div className={styles.detailItem}>
+                                          <span className={styles.detailLabel}>Valid Until</span>
+                                          <span className={styles.detailValue}>
+                                            {formatDateTime(outlet.validUntil ?? null)}
+                                          </span>
+                                        </div>
+                                        <div className={styles.detailItem}>
+                                          <span className={styles.detailLabel}>Created At</span>
+                                          <span className={styles.detailValue}>
+                                            {formatDateTime(outlet.createdAt ?? null)}
+                                          </span>
+                                        </div>
+                                      </div>
                                     </div>
-                                    <div className={styles.detailGrid}>
-                                      <div className={styles.detailItem}>
-                                        <span className={styles.detailLabel}>Address</span>
-                                        <span className={styles.detailValue}>
-                                          {formatDetailValue(outlet.address ?? null)}
-                                        </span>
-                                      </div>
-                                      <div className={styles.detailItem}>
-                                        <span className={styles.detailLabel}>Valid Until</span>
-                                        <span className={styles.detailValue}>
-                                          {formatDateTime(outlet.validUntil ?? null)}
-                                        </span>
-                                      </div>
-                                      <div className={styles.detailItem}>
-                                        <span className={styles.detailLabel}>Created At</span>
-                                        <span className={styles.detailValue}>
-                                          {formatDateTime(outlet.createdAt ?? null)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           </td>
@@ -506,7 +578,7 @@ export default function MerchantsClient({
         <div className={ticketStyles.paginationBar}>
           <div className={ticketStyles.paginationPerPage}>
             <span className={ticketStyles.paginationLabel}>Rows per page</span>
-            <RowsPerPageControls options={PER_PAGE_OPTIONS} current={perPage} onChange={handlePerPageChange} />
+            <RowsPerPageControls options={PER_PAGE_OPTIONS} current={perPage} onChange={onPerPageChange} />
           </div>
           <div className={ticketStyles.paginationInfo}>
             Showing {startIndex}-{endIndex} of {totalCount}
@@ -516,7 +588,7 @@ export default function MerchantsClient({
             totalPages={totalPagesSafe}
             previousPage={previousPage}
             nextPage={nextPage}
-            onChange={handlePageChange}
+            onChange={onPageChange}
           />
         </div>
       </section>
@@ -549,8 +621,6 @@ type FranchiseImportJob = {
   errorMessage: string | null;
 };
 
-type SortDirection = 'asc' | 'desc';
-type SortKey = 'fid' | 'franchise' | 'outlets';
 type SortConfig = { key: SortKey; direction: SortDirection };
 
 function SortIcon({ active, direction }: { active: boolean; direction: SortDirection }) {

@@ -1,92 +1,37 @@
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import styles from '../tickets/tickets.module.css';
 import MerchantsClient from './MerchantsClient';
+import {
+  applyMerchantsSearchAction,
+  changeMerchantsPageAction,
+  changeMerchantsPerPageAction,
+  changeMerchantsSortAction,
+} from './actions';
+import { DEFAULT_PER_PAGE, DEFAULT_SORT_DIRECTION, DEFAULT_SORT_KEY } from './constants';
+import { parseMerchantsViewState } from './view-state';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessSupportPages } from '@/lib/branding';
 import { getFranchiseMetrics, listCachedFranchises, searchCachedFranchises } from '@/lib/franchise-cache';
 import type { FranchiseSummary } from '@/lib/franchise';
+import { MERCHANTS_VIEW_COOKIE } from '@/lib/preferences';
 
 export const dynamic = 'force-dynamic';
 
-const PER_PAGE_OPTIONS = [10, 25, 50, 100] as const;
-const DEFAULT_PER_PAGE = 25;
-const DEFAULT_SORT_KEY: SortKey = 'fid';
-const DEFAULT_SORT_DIRECTION: SortDirection = 'desc';
-
-const parsePage = (value: string | string[] | undefined): number => {
-  if (Array.isArray(value)) {
-    return parsePage(value[0]);
-  }
-  if (!value) {
-    return 1;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isNaN(parsed) || parsed < 1 ? 1 : parsed;
-};
-
-const parsePerPage = (value: string | string[] | undefined): number => {
-  if (Array.isArray(value)) {
-    return parsePerPage(value[0]);
-  }
-  if (!value) {
-    return DEFAULT_PER_PAGE;
-  }
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) {
-    return DEFAULT_PER_PAGE;
-  }
-  return PER_PAGE_OPTIONS.includes(parsed as (typeof PER_PAGE_OPTIONS)[number]) ? parsed : DEFAULT_PER_PAGE;
-};
-
-const parseSortKey = (value: string | string[] | undefined): SortKey => {
-  const candidate = Array.isArray(value) ? value[0] : value;
-  if (candidate === 'fid' || candidate === 'franchise' || candidate === 'outlets') {
-    return candidate;
-  }
-  return DEFAULT_SORT_KEY;
-};
-
-const parseSortDirection = (value: string | string[] | undefined): SortDirection => {
-  const candidate = Array.isArray(value) ? value[0] : value;
-  if (candidate === 'asc' || candidate === 'desc') {
-    return candidate;
-  }
-  return DEFAULT_SORT_DIRECTION;
-};
-
-export default async function MerchantsPage({
-  searchParams,
-}: {
-  searchParams?:
-    | {
-        page?: string | string[];
-        q?: string | string[];
-        perPage?: string | string[];
-        sort?: string | string[];
-        dir?: string | string[];
-      }
-    | Promise<{
-        page?: string | string[];
-        q?: string | string[];
-        perPage?: string | string[];
-        sort?: string | string[];
-        dir?: string | string[];
-      }>;
-}) {
+export default async function MerchantsPage() {
   const authUser = await getAuthenticatedUser();
   if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
     redirect('/profile');
   }
 
-  const resolvedSearchParams = await searchParams;
-  const page = parsePage(resolvedSearchParams?.page);
-  const rawQuery = Array.isArray(resolvedSearchParams?.q)
-    ? resolvedSearchParams?.q[0] ?? ''
-    : resolvedSearchParams?.q ?? '';
-  const initialQuery = rawQuery.trim();
-  const perPage = parsePerPage(resolvedSearchParams?.perPage);
-  const sortKey = parseSortKey(resolvedSearchParams?.sort);
-  const sortDirection = parseSortDirection(resolvedSearchParams?.dir);
+  const cookieStore = await cookies();
+  const viewState = parseMerchantsViewState(cookieStore.get(MERCHANTS_VIEW_COOKIE)?.value);
+
+  const page = viewState.page ?? 1;
+  const initialQuery = viewState.query ?? '';
+  const perPage = viewState.perPage ?? DEFAULT_PER_PAGE;
+  const sortKey = viewState.sortKey ?? DEFAULT_SORT_KEY;
+  const sortDirection = viewState.sortDirection ?? DEFAULT_SORT_DIRECTION;
   const hasQuery = initialQuery.length > 0;
 
   let dataLoadFailed = false;
@@ -151,7 +96,6 @@ export default async function MerchantsPage({
       </section>
 
       <MerchantsClient
-        key={`${currentPage}-${perPage}-${initialQuery}-${sortKey}-${sortDirection}`}
         franchises={franchises}
         page={currentPage}
         totalPages={totalPages}
@@ -162,10 +106,11 @@ export default async function MerchantsPage({
         sortKey={sortKey}
         sortDirection={sortDirection}
         dataUnavailable={dataLoadFailed}
+        onSearch={applyMerchantsSearchAction}
+        onPerPageChange={changeMerchantsPerPageAction}
+        onPageChange={changeMerchantsPageAction}
+        onSortChange={changeMerchantsSortAction}
       />
     </div>
   );
 }
-
-type SortKey = 'fid' | 'franchise' | 'outlets';
-type SortDirection = 'asc' | 'desc';

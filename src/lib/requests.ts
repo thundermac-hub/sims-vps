@@ -160,106 +160,107 @@ export interface FetchRequestsResult {
 export type SupportRequestWithAttachment = SupportRequestRow & { attachmentDownloadUrls: string[] };
 type FranchiseLookupResult = Awaited<ReturnType<typeof fetchFranchiseOutlet>>;
 
+const SELECT_COLUMNS_WITH_FRANCHISE = [
+  'id',
+  'merchant_name',
+  'outlet_name',
+  'phone_number',
+  'email',
+  'fid',
+  'oid',
+  'issue_type',
+  'issue_subcategory1',
+  'issue_subcategory2',
+  'issue_description',
+  'ticket_description',
+  'clickup_link',
+  'clickup_task_id',
+  'clickup_task_status',
+  'clickup_task_status_synced_at',
+  'attachment_url',
+  'attachment_url_2',
+  'attachment_url_3',
+  'status',
+  'closed_at',
+  'updated_by',
+  'ms_pic_user_id',
+  'hidden',
+  'franchise_name_resolved',
+  'outlet_name_resolved',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+const SELECT_COLUMNS_FALLBACK = [
+  'id',
+  'merchant_name',
+  'outlet_name',
+  'phone_number',
+  'email',
+  'fid',
+  'oid',
+  'issue_type',
+  'issue_subcategory1',
+  'issue_subcategory2',
+  'issue_description',
+  'ticket_description',
+  'clickup_link',
+  'clickup_task_id',
+  'clickup_task_status',
+  'clickup_task_status_synced_at',
+  'attachment_url',
+  'attachment_url_2',
+  'attachment_url_3',
+  'status',
+  'closed_at',
+  'updated_by',
+  'ms_pic_user_id',
+  'hidden',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+const SELECT_COLUMNS_LEGACY = [
+  'id',
+  'merchant_name',
+  'outlet_name',
+  'phone_number',
+  'email',
+  'fid',
+  'oid',
+  'issue_type',
+  'issue_subcategory1',
+  'issue_subcategory2',
+  'issue_description',
+  'ticket_description',
+  'clickup_link',
+  'clickup_task_id',
+  'clickup_task_status',
+  'clickup_task_status_synced_at',
+  'attachment_url',
+  'attachment_url_2',
+  'attachment_url_3',
+  'status',
+  'closed_at',
+  'updated_by',
+  'ms_pic_user_id',
+  'created_at',
+  'updated_at',
+].join(', ');
+
 export async function fetchRequests(
   filters: RequestFilters,
   options: FetchRequestsOptions = {},
 ): Promise<FetchRequestsResult> {
   const { limit = 200, offset = 0, withCount = false } = options;
   const supabase = getSupabaseAdminClient();
-  const selectColumnsWithFranchise = [
-    'id',
-    'merchant_name',
-    'outlet_name',
-    'phone_number',
-    'email',
-    'fid',
-    'oid',
-    'issue_type',
-    'issue_subcategory1',
-    'issue_subcategory2',
-    'issue_description',
-    'ticket_description',
-    'clickup_link',
-    'clickup_task_id',
-    'clickup_task_status',
-    'clickup_task_status_synced_at',
-    'attachment_url',
-    'attachment_url_2',
-    'attachment_url_3',
-    'status',
-    'closed_at',
-    'updated_by',
-    'ms_pic_user_id',
-    'hidden',
-    'franchise_name_resolved',
-    'outlet_name_resolved',
-    'created_at',
-    'updated_at',
-  ].join(', ');
-
-  const selectColumnsFallback = [
-    'id',
-    'merchant_name',
-    'outlet_name',
-    'phone_number',
-    'email',
-    'fid',
-    'oid',
-    'issue_type',
-    'issue_subcategory1',
-    'issue_subcategory2',
-    'issue_description',
-    'ticket_description',
-    'clickup_link',
-    'clickup_task_id',
-    'clickup_task_status',
-    'clickup_task_status_synced_at',
-    'attachment_url',
-    'attachment_url_2',
-    'attachment_url_3',
-    'status',
-    'closed_at',
-    'updated_by',
-    'ms_pic_user_id',
-    'hidden',
-    'created_at',
-    'updated_at',
-  ].join(', ');
-
-  const selectColumnsLegacy = [
-    'id',
-    'merchant_name',
-    'outlet_name',
-    'phone_number',
-    'email',
-    'fid',
-    'oid',
-    'issue_type',
-    'issue_subcategory1',
-    'issue_subcategory2',
-    'issue_description',
-    'ticket_description',
-    'clickup_link',
-    'clickup_task_id',
-    'clickup_task_status',
-    'clickup_task_status_synced_at',
-    'attachment_url',
-    'attachment_url_2',
-    'attachment_url_3',
-    'status',
-    'closed_at',
-    'updated_by',
-    'ms_pic_user_id',
-    'created_at',
-    'updated_at',
-  ].join(', ');
 
   const buildQuery = (selectColumns: string) =>
     supabase.from('support_requests').select(selectColumns, { count: withCount ? 'exact' : undefined }).order('created_at', {
       ascending: false,
     });
 
-  let queryBuilder = buildQuery(selectColumnsWithFranchise);
+  let queryBuilder = buildQuery(SELECT_COLUMNS_WITH_FRANCHISE);
 
   if (limit > 0) {
     queryBuilder = queryBuilder.range(offset, offset + limit - 1);
@@ -323,7 +324,70 @@ export async function fetchRequests(
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '42703') {
       // Backward compatibility for databases without the "hidden" column
-      const fallbackQuery = buildQuery(selectColumnsFallback);
+      const fallbackQuery = buildQuery(SELECT_COLUMNS_FALLBACK);
+      const result = await executeQuery(fallbackQuery);
+      data = result.data as unknown[];
+      count = result.count;
+    } else {
+      throw error;
+    }
+  }
+
+  if (!data) {
+    return { rows: [], count: count ?? null };
+  }
+
+  const rows = data as unknown as SupabaseSupportRequest[];
+  return {
+    rows: rows.map(mapSupabaseRow),
+    count: count ?? null,
+  };
+}
+
+export async function fetchRequestsByFid(
+  fid: string,
+  options: FetchRequestsOptions = {},
+  includeArchived = false,
+): Promise<FetchRequestsResult> {
+  const cleaned = (fid ?? '').trim();
+  if (!cleaned) {
+    return { rows: [], count: 0 };
+  }
+  const { limit = 200, offset = 0, withCount = false } = options;
+  const supabase = getSupabaseAdminClient();
+
+  const buildQuery = (selectColumns: string) =>
+    supabase
+      .from('support_requests')
+      .select(selectColumns, { count: withCount ? 'exact' : undefined })
+      .eq('fid', cleaned)
+      .order('created_at', { ascending: false });
+
+  let queryBuilder = buildQuery(SELECT_COLUMNS_WITH_FRANCHISE);
+  if (limit > 0) {
+    queryBuilder = queryBuilder.range(offset, offset + limit - 1);
+  }
+  if (!includeArchived) {
+    queryBuilder = queryBuilder.eq('hidden', false);
+  }
+
+  const executeQuery = async (qb: typeof queryBuilder) => {
+    const { data, error, count } = await qb;
+    if (error) {
+      throw error;
+    }
+    return { data, count };
+  };
+
+  let data: unknown[] | null = null;
+  let count: number | null | undefined = null;
+  try {
+    const result = await executeQuery(queryBuilder);
+    data = result.data as unknown[];
+    count = result.count;
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && (error as { code?: string }).code === '42703') {
+      const fallbackQuery = buildQuery(SELECT_COLUMNS_FALLBACK);
       const result = await executeQuery(fallbackQuery);
       data = result.data as unknown[];
       count = result.count;
@@ -748,7 +812,7 @@ type ExportUserMaps = {
   displayByEmail: Map<string, string>;
 };
 
-type ExportCsatResponse = {
+export type ExportCsatResponse = {
   support_score: string;
   support_reason: string | null;
   product_score: string;
@@ -1014,6 +1078,51 @@ async function fetchCsatResponsesByRequest(requestIds: number[]): Promise<Map<nu
   });
 
   return map;
+}
+
+export async function fetchCsatResponseByRequest(
+  requestId: number,
+): Promise<(ExportCsatResponse & { submitted_at?: string | null }) | null> {
+  const id = Number(requestId);
+  if (!Number.isFinite(id) || id <= 0) {
+    return null;
+  }
+
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from('csat_responses')
+    .select('support_score, support_reason, product_score, product_feedback, submitted_at')
+    .eq('request_id', id)
+    .order('submitted_at', { ascending: false })
+    .limit(1);
+
+  if (error || !data) {
+    if (error && (error as { code?: string }).code !== '42P01') {
+      console.warn('Failed to fetch CSAT response', error);
+    }
+    return null;
+  }
+
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | {
+        support_score: string | number | null;
+        support_reason: string | null;
+        product_score: string | number | null;
+        product_feedback: string | null;
+        submitted_at?: string | null;
+      }
+    | undefined;
+  if (!row) {
+    return null;
+  }
+
+  return {
+    support_score: row.support_score == null ? '' : String(row.support_score),
+    support_reason: typeof row.support_reason === 'string' ? row.support_reason : null,
+    product_score: row.product_score == null ? '' : String(row.product_score),
+    product_feedback: typeof row.product_feedback === 'string' ? row.product_feedback : null,
+    submitted_at: typeof row.submitted_at === 'string' ? row.submitted_at : null,
+  };
 }
 
 async function fetchCsatWhatsappSent(requestIds: number[]): Promise<Map<number, boolean>> {
@@ -1475,6 +1584,28 @@ export async function getSupportRequestHistory(requestId: number): Promise<Suppo
     throw error;
   }
   return (data as unknown as SupportRequestHistoryRow[]) ?? [];
+}
+
+export async function fetchSupportRequestHistoryPage(
+  limit: number,
+  offset: number,
+): Promise<{ rows: SupportRequestHistoryRow[]; count: number }> {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 500) : 50;
+  const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0;
+  const supabase = getSupabaseAdminClient();
+  const { data, error, count } = await supabase
+    .from('support_request_history')
+    .select('id, request_id, field_name, old_value, new_value, changed_at, changed_by', { count: 'exact' })
+    .order('changed_at', { ascending: false })
+    .range(safeOffset, safeOffset + safeLimit - 1);
+
+  if (error) {
+    throw error;
+  }
+  return {
+    rows: (data as unknown as SupportRequestHistoryRow[]) ?? [],
+    count: count ?? 0,
+  };
 }
 
 export async function createClickUpTaskForTicket(

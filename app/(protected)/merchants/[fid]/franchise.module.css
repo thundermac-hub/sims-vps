@@ -1,0 +1,73 @@
+.heroActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  color: #111827;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+}
+
+.actionLink:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.sectionBody {
+  padding: 20px 24px 24px;
+}
+
+.sectionMeta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ticketsMeta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ticketsTable td,
+.ticketsTable th {
+  padding: 10px 12px;
+}
+
+.ticketId {
+  font-weight: 700;
+  color: #111827;
+}
+
+.ticketSecondary {
+  display: block;
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.emptyState {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+@media (max-width: 720px) {
+  .sectionBody {
+    padding: 16px;
+  }
+
+  .ticketsTable td,
+  .ticketsTable th {
+    padding: 8px;
+  }
+}
