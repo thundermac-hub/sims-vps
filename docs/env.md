@@ -7,7 +7,7 @@ WHATSAPP_PHONE=60136062465
 
 # Attachment controls
 MAX_UPLOAD_BYTES=5242880
-ALLOWED_MIME_TYPES=image/jpeg,image/png,application/pdf
+ALLOWED_MIME_TYPES=image/jpeg,image/png,image/heic,image/heif,application/pdf
 
 # MySQL configuration
 MYSQL_HOST=127.0.0.1

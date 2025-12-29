@@ -10,6 +10,7 @@ import {
   useState,
   useTransition,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import styles from './tickets.module.css';
 import type { ClickUpActionResult } from './types';
@@ -204,6 +205,7 @@ export default function TicketViewButton({
   onMarkCsatWhatsappSent,
 }: TicketViewButtonProps) {
   const router = useRouter();
+  const portalTarget = typeof document === 'undefined' ? null : document.body;
   const [isOpen, setIsOpen] = useState(false);
   const [formState, setFormState] = useState<FormState>(() => ({
     merchantName: ticket.merchantName,
@@ -672,72 +674,67 @@ export default function TicketViewButton({
     }
   };
 
-  return (
-    <>
-      <button type="button" className={styles.viewButton} onClick={() => setIsOpen(true)}>
-        View
-      </button>
-      {isOpen ? (
-        <div className={styles.modalBackdrop} role="presentation">
-          <div className={styles.modalContainer} role="dialog" aria-modal="true" aria-labelledby={`ticket-${ticket.id}`}>
-            <header className={styles.modalHero}>
-              <button type="button" className={styles.modalClose} onClick={closeModal} aria-label="Close ticket details">
-                ×
-              </button>
-              <div className={styles.modalHeroBody}>
-                <div className={styles.modalHeroContent}>
-                  <p className={styles.modalHeroKicker}>Support Ticket</p>
-                  <h3 id={`ticket-${ticket.id}`} className={styles.modalTitle}>
-                    Ticket #{ticket.id}
-                  </h3>
-                  <p className={styles.modalMetaLine}>
-                    Created {createdAtDisplay} · Updated {updatedAtDisplay}
-                    {ticket.updatedByName ? ` by ${ticket.updatedByName}` : ''}
-                  </p>
-                </div>
-              </div>
-            </header>
+  const modalContent = isOpen ? (
+    <div className={styles.modalBackdrop} role="presentation">
+      <div className={styles.modalContainer} role="dialog" aria-modal="true" aria-labelledby={`ticket-${ticket.id}`}>
+        <header className={styles.modalHero}>
+          <button type="button" className={styles.modalClose} onClick={closeModal} aria-label="Close ticket details">
+            ×
+          </button>
+          <div className={styles.modalHeroBody}>
+            <div className={styles.modalHeroContent}>
+              <p className={styles.modalHeroKicker}>Support Ticket</p>
+              <h3 id={`ticket-${ticket.id}`} className={styles.modalTitle}>
+                Ticket #{ticket.id}
+              </h3>
+              <p className={styles.modalMetaLine}>
+                Created {createdAtDisplay} · Updated {updatedAtDisplay}
+                {ticket.updatedByName ? ` by ${ticket.updatedByName}` : ''}
+              </p>
+            </div>
+          </div>
+        </header>
 
-            <div className={styles.modalBody}>
-              <div className={styles.modalInfoRow}>
-                <div className={`${styles.modalInfoChip} ${styles.modalStatusChip}`}>
-                  <div className={styles.statusWithPic}>
-                    <span className={`${styles.statusBadge} ${styles[`status${formState.status.replace(/\s+/g, '')}`]}`}>
-                      {formState.status}
-                    </span>
-                    {closedAtDisplay ? (
-                      <span className={styles.statusTooltip}>
-                        Resolved: {closedAtDisplay}
-                        {resolutionDuration ? (
-                          <>
-                            <br />
-                            Duration: {resolutionDuration}
-                          </>
-                        ) : null}
-                      </span>
+        <div className={styles.modalBody}>
+          <div className={styles.modalInfoRow}>
+            <div className={`${styles.modalInfoChip} ${styles.modalStatusChip}`}>
+              <div className={styles.statusWithPic}>
+                <span className={`${styles.statusBadge} ${styles[`status${formState.status.replace(/\s+/g, '')}`]}`}>
+                  {formState.status}
+                </span>
+                {closedAtDisplay ? (
+                  <span className={styles.statusTooltip}>
+                    Resolved: {closedAtDisplay}
+                    {resolutionDuration ? (
+                      <>
+                        <br />
+                        Duration: {resolutionDuration}
+                      </>
                     ) : null}
-                  </div>
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className={styles.modalInfoChip}>
+              <strong>Attachments</strong>
+              {ticket.attachmentDownloadUrls.length > 0 ? (
+                <div className={styles.attachmentLinks}>
+                  {ticket.attachmentDownloadUrls.map((url, index) => (
+                    <span key={url} className={styles.attachmentLinkWrapper}>
+                      {index > 0 ? <span className={styles.attachmentSeparator}>•</span> : null}
+                      <a href={url} target="_blank" rel="noreferrer">
+                        File {index + 1}
+                      </a>
+                    </span>
+                  ))}
                 </div>
-                <div className={styles.modalInfoChip}>
-                  <strong>Attachments</strong>
-                  {ticket.attachmentDownloadUrls.length > 0 ? (
-                    <div className={styles.attachmentLinks}>
-                      {ticket.attachmentDownloadUrls.map((url, index) => (
-                        <span key={url} className={styles.attachmentLinkWrapper}>
-                          {index > 0 ? <span className={styles.attachmentSeparator}>•</span> : null}
-                          <a href={url} target="_blank" rel="noreferrer">
-                            File {index + 1}
-                          </a>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    '—'
-                  )}
-                </div>
-                <div className={styles.modalInfoChip}>
-                  <strong>ClickUp</strong>
-                  {formState.clickupLink ? (
+              ) : (
+                '—'
+              )}
+            </div>
+            <div className={styles.modalInfoChip}>
+              <strong>ClickUp</strong>
+              {formState.clickupLink ? (
                     <a href={formState.clickupLink} target="_blank" rel="noreferrer">
                       View task
                     </a>
@@ -1177,92 +1174,111 @@ export default function TicketViewButton({
             </div>
           </div>
         </div>
-      ) : null}
-      {errorDialog ? (
-        <div className={styles.dialogOverlay} role="alertdialog" aria-modal="true">
-          <div className={styles.dialogCard}>
-            <div className={styles.dialogHeader}>
-              <h3>Unable to save</h3>
-              <button
-                type="button"
-                className={styles.dialogClose}
-                onClick={() => setErrorDialog(null)}
-                aria-label="Close error dialog"
-              >
-                ×
-              </button>
-            </div>
-            <p className={styles.dialogBody}>{errorDialog}</p>
-            <div className={styles.dialogActions}>
-              <button type="button" className={styles.dialogPrimary} onClick={() => setErrorDialog(null)}>
-                Got it
-              </button>
-            </div>
-          </div>
+      </div>
+    </div>
+  ) : null;
+
+  const errorDialogContent = errorDialog ? (
+    <div className={styles.dialogOverlay} role="alertdialog" aria-modal="true">
+      <div className={styles.dialogCard}>
+        <div className={styles.dialogHeader}>
+          <h3>Unable to save</h3>
+          <button
+            type="button"
+            className={styles.dialogClose}
+            onClick={() => setErrorDialog(null)}
+            aria-label="Close error dialog"
+          >
+            ×
+          </button>
         </div>
-      ) : null}
-      {historyOpen ? (
-        <div className={styles.dialogOverlay} role="dialog" aria-modal="true">
-          <div className={styles.dialogCard}>
-            <div className={styles.dialogHeader}>
-              <h3>Ticket History</h3>
-              <button
-                type="button"
-                className={styles.dialogClose}
-                onClick={() => setHistoryOpen(false)}
-                aria-label="Close history"
-              >
-                ×
-              </button>
-            </div>
-            <div className={styles.historyBody}>
-              {historyLoading ? (
-                <p className={styles.dialogBody}>Loading history…</p>
-              ) : historyEntries.length === 0 ? (
-                <p className={styles.dialogBody}>No history available.</p>
-              ) : (
-                <ul className={styles.historyList}>
-                  {historyEntries.map((entry) => (
-                    <li key={entry.changed_at + entry.field_name} className={styles.historyItem}>
-                      <div className={styles.historyLine}>
-                        <span className={styles.historyField}>{formatHistoryField(entry.field_name)}</span>
-                        <span className={styles.historyWhen}>
-                          {new Date(entry.changed_at).toLocaleString('en-MY', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: timezone,
-                          })}
-                        </span>
-                      </div>
-                      <div className={styles.historyValues}>
-                        <span className={styles.historyLabel}>From:</span>
-                        <span className={styles.historyValue}>
-                          {formatHistoryValue(entry.field_name, entry.old_value, userDisplayById)}
-                        </span>
-                        <span className={styles.historyLabel}>To:</span>
-                        <span className={styles.historyValue}>
-                          {formatHistoryValue(entry.field_name, entry.new_value, userDisplayById)}
-                        </span>
-                      </div>
-                      <div className={styles.historyBy}>
-                        Changed by: {formatHistoryUser(entry.changed_by, userDisplayById)}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            <div className={styles.dialogActions}>
-              <button type="button" className={styles.dialogPrimary} onClick={() => setHistoryOpen(false)}>
-                Close
-              </button>
-            </div>
-          </div>
+        <p className={styles.dialogBody}>{errorDialog}</p>
+        <div className={styles.dialogActions}>
+          <button type="button" className={styles.dialogPrimary} onClick={() => setErrorDialog(null)}>
+            Got it
+          </button>
         </div>
-      ) : null}
+      </div>
+    </div>
+  ) : null;
+
+  const historyDialogContent = historyOpen ? (
+    <div className={styles.dialogOverlay} role="dialog" aria-modal="true">
+      <div className={styles.dialogCard}>
+        <div className={styles.dialogHeader}>
+          <h3>Ticket History</h3>
+          <button
+            type="button"
+            className={styles.dialogClose}
+            onClick={() => setHistoryOpen(false)}
+            aria-label="Close history"
+          >
+            ×
+          </button>
+        </div>
+        <div className={styles.historyBody}>
+          {historyLoading ? (
+            <p className={styles.dialogBody}>Loading history…</p>
+          ) : historyEntries.length === 0 ? (
+            <p className={styles.dialogBody}>No history available.</p>
+          ) : (
+            <ul className={styles.historyList}>
+              {historyEntries.map((entry) => (
+                <li key={entry.changed_at + entry.field_name} className={styles.historyItem}>
+                  <div className={styles.historyLine}>
+                    <span className={styles.historyField}>{formatHistoryField(entry.field_name)}</span>
+                    <span className={styles.historyWhen}>
+                      {new Date(entry.changed_at).toLocaleString('en-MY', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: timezone,
+                      })}
+                    </span>
+                  </div>
+                  <div className={styles.historyValues}>
+                    <span className={styles.historyLabel}>From:</span>
+                    <span className={styles.historyValue}>
+                      {formatHistoryValue(entry.field_name, entry.old_value, userDisplayById)}
+                    </span>
+                    <span className={styles.historyLabel}>To:</span>
+                    <span className={styles.historyValue}>
+                      {formatHistoryValue(entry.field_name, entry.new_value, userDisplayById)}
+                    </span>
+                  </div>
+                  <div className={styles.historyBy}>
+                    Changed by: {formatHistoryUser(entry.changed_by, userDisplayById)}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className={styles.dialogActions}>
+          <button type="button" className={styles.dialogPrimary} onClick={() => setHistoryOpen(false)}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  const overlayContent = (
+    <>
+      {modalContent}
+      {errorDialogContent}
+      {historyDialogContent}
+    </>
+  );
+
+  return (
+    <>
+      <button type="button" className={styles.viewButton} onClick={() => setIsOpen(true)}>
+        View
+      </button>
+      {portalTarget ? createPortal(overlayContent, portalTarget) : overlayContent}
     </>
   );
 }
