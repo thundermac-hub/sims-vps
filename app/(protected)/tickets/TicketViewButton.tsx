@@ -735,9 +735,9 @@ export default function TicketViewButton({
             <div className={styles.modalInfoChip}>
               <strong>ClickUp</strong>
               {formState.clickupLink ? (
-                    <a href={formState.clickupLink} target="_blank" rel="noreferrer">
-                      View task
-                    </a>
+                <a href={formState.clickupLink} target="_blank" rel="noreferrer">
+                  View task
+                </a>
               ) : (
                 '—'
               )}
@@ -748,17 +748,17 @@ export default function TicketViewButton({
             </div>
           </div>
 
-              {feedback ? (
-                <div
-                  className={`${styles.modalAlert} ${
-                    feedback.type === 'success' ? styles.modalAlertSuccess : styles.modalAlertError
-                  }`}
-                >
-                  {feedback.message}
-                </div>
-              ) : null}
+          {feedback ? (
+            <div
+              className={`${styles.modalAlert} ${
+                feedback.type === 'success' ? styles.modalAlertSuccess : styles.modalAlertError
+              }`}
+            >
+              {feedback.message}
+            </div>
+          ) : null}
 
-              <form onSubmit={handleSubmit} className={styles.modalForm}>
+          <form onSubmit={handleSubmit} className={styles.modalForm}>
                 <section className={styles.modalGroup}>
                   <div className={styles.modalGroupHeader}>
                     <h4 className={styles.modalGroupTitle}>Contact Information</h4>
@@ -1174,8 +1174,6 @@ export default function TicketViewButton({
             </div>
           </div>
         </div>
-      </div>
-    </div>
   ) : null;
 
   const errorDialogContent = errorDialog ? (
