@@ -14,6 +14,7 @@ import { PER_PAGE_OPTIONS, type SortDirection, type SortKey } from './constants'
 
 interface MerchantsClientProps {
   franchises: FranchiseSummary[];
+  canStartImport: boolean;
   totalCount: number;
   totalActiveOutlets: number;
   page: number;
@@ -127,6 +128,7 @@ const buildExportHref = (format: 'csv' | 'pdf', sort: SortConfig): string => {
 
 export default function MerchantsClient({
   franchises,
+  canStartImport,
   totalCount,
   totalActiveOutlets,
   page,
@@ -174,7 +176,9 @@ export default function MerchantsClient({
     : activeQuery
       ? 'No franchises match this search.'
       : totalCount === 0
-        ? 'No cached franchise data yet. Run a manual import to load the latest list.'
+        ? canStartImport
+          ? 'No cached franchise data yet. Run a manual import to load the latest list.'
+          : 'No cached franchise data yet. Check back after the next nightly sync.'
         : 'No franchises with outlets were found on this page.';
 
   const headerMeta = dataUnavailable ? 'Data unavailable' : `Page ${page} of ${totalPagesSafe}`;
@@ -257,6 +261,9 @@ export default function MerchantsClient({
   }, []);
 
   const startImport = async () => {
+    if (!canStartImport) {
+      return;
+    }
     setImportError(null);
     setIsStartingImport(true);
     try {
@@ -341,16 +348,18 @@ export default function MerchantsClient({
               </a>
             </div>
           </details>
-          <button
-            type="button"
-            className={styles.importCta}
-            onClick={startImport}
-            disabled={isStartingImport || importJob?.status === 'running'}
-          >
-            {importJob?.status === 'running' ? 'Importing...' : 'Import Latest Data'}
-          </button>
+          {canStartImport ? (
+            <button
+              type="button"
+              className={styles.importCta}
+              onClick={startImport}
+              disabled={isStartingImport || importJob?.status === 'running'}
+            >
+              {importJob?.status === 'running' ? 'Importing...' : 'Import Latest Data'}
+            </button>
+          ) : null}
         </div>
-        {!showImportModal ? (
+        {canStartImport && !showImportModal ? (
           <div className={styles.importBar}>
             <div className={styles.importStatus}>
               {importJob ? (

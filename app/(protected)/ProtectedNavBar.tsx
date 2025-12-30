@@ -18,7 +18,7 @@ import {
   Users,
 } from 'lucide-react';
 import styles from './layout.module.css';
-import { getPortalLabel, canAccessSupportPages, canManageSupportSettings } from '@/lib/branding';
+import { getPortalLabel, canAccessMerchantsPages, canAccessSupportPages, canManageSupportSettings } from '@/lib/branding';
 
 interface ProtectedNavBarProps {
   username: string;
@@ -68,6 +68,7 @@ export default function ProtectedNavBar({
   const toggleMobileNav = () => {
     setIsMobileOpen((prev) => !prev);
   };
+  const canSeeMerchants = canAccessMerchantsPages(department, isSuperAdmin);
   const canSeeSupport = canAccessSupportPages(department, isSuperAdmin);
   const canConfigureSupport = canManageSupportSettings(department, role, isSuperAdmin);
   const portalLabel = getPortalLabel(department, isSuperAdmin);
@@ -80,7 +81,7 @@ export default function ProtectedNavBar({
         ...(canConfigureSupport ? [{ href: '/support-settings', label: 'Support Settings', icon: Sliders }] : []),
       ]
     : [];
-  const generalLinks: NavLink[] = canSeeSupport ? [{ href: '/merchants', label: 'Merchants', icon: Store }] : [];
+  const generalLinks: NavLink[] = canSeeMerchants ? [{ href: '/merchants', label: 'Merchants', icon: Store }] : [];
   const settingsLinks: NavLink[] = [{ href: '/profile', label: 'Profile', icon: User }];
   if (canManageUsers) {
     settingsLinks.unshift({ href: '/users', label: 'Users', icon: Users });

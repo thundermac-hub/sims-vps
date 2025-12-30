@@ -28,6 +28,10 @@
   padding: 20px 24px 24px;
 }
 
+.tableSectionBody {
+  padding: 0;
+}
+
 .sectionMeta {
   font-size: 12px;
   color: #6b7280;
@@ -64,6 +68,10 @@
 @media (max-width: 720px) {
   .sectionBody {
     padding: 16px;
+  }
+
+  .tableSectionBody {
+    padding: 0;
   }
 
   .ticketsTable td,

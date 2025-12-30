@@ -19,8 +19,23 @@ export function getDepartmentDisplayName(department: string | null): string {
   return department ?? 'Team';
 }
 
+const hasDepartmentAccess = (department: string | null, isSuperAdmin: boolean): boolean => {
+  if (isSuperAdmin) {
+    return true;
+  }
+  return Boolean(department && department.trim().length > 0);
+};
+
 export function canAccessSupportPages(department: string | null, isSuperAdmin: boolean): boolean {
   return isSuperAdmin || department === 'Merchant Success';
+}
+
+export function canAccessMerchantsPages(department: string | null, isSuperAdmin: boolean): boolean {
+  return hasDepartmentAccess(department, isSuperAdmin);
+}
+
+export function canAccessTicketsPages(department: string | null, isSuperAdmin: boolean): boolean {
+  return hasDepartmentAccess(department, isSuperAdmin);
 }
 
 export function canManageSupportSettings(

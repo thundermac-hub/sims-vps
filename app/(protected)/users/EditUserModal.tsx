@@ -62,7 +62,17 @@ export default function EditUserModal({
               </button>
             </div>
             <div className={styles.userModalBody}>
-              <form action={updateAction} className={styles.userModalForm}>
+              <form
+                action={async (formData) => {
+                  try {
+                    await updateAction(formData);
+                    setIsOpen(false);
+                  } catch (error) {
+                    console.error('Failed to update user', error);
+                  }
+                }}
+                className={styles.userModalForm}
+              >
                 <input type="hidden" name="id" value={user.id} />
                 <label className={styles.fieldGroup}>
                   <span>Name</span>

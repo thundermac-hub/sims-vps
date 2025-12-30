@@ -11,7 +11,7 @@ import {
 import { DEFAULT_PER_PAGE, DEFAULT_SORT_DIRECTION, DEFAULT_SORT_KEY } from './constants';
 import { parseMerchantsViewState } from './view-state';
 import { getAuthenticatedUser } from '@/lib/auth-user';
-import { canAccessSupportPages } from '@/lib/branding';
+import { canAccessMerchantsPages } from '@/lib/branding';
 import { getFranchiseMetrics, listCachedFranchises, searchCachedFranchises } from '@/lib/franchise-cache';
 import type { FranchiseSummary } from '@/lib/franchise';
 import { MERCHANTS_VIEW_COOKIE } from '@/lib/preferences';
@@ -20,9 +20,10 @@ export const dynamic = 'force-dynamic';
 
 export default async function MerchantsPage() {
   const authUser = await getAuthenticatedUser();
-  if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
+  if (!canAccessMerchantsPages(authUser.department, authUser.isSuperAdmin)) {
     redirect('/profile');
   }
+  const canStartImport = canAccessMerchantsPages(authUser.department, authUser.isSuperAdmin);
 
   const cookieStore = await cookies();
   const viewState = parseMerchantsViewState(cookieStore.get(MERCHANTS_VIEW_COOKIE)?.value);
@@ -97,6 +98,7 @@ export default async function MerchantsPage() {
 
       <MerchantsClient
         franchises={franchises}
+        canStartImport={canStartImport}
         page={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}

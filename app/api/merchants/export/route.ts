@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-user';
-import { canAccessSupportPages } from '@/lib/branding';
+import { canAccessMerchantsPages } from '@/lib/branding';
 import {
   buildMerchantsExportCsv,
   buildMerchantsExportHtml,
@@ -51,7 +51,7 @@ const parseFilters = (
 
 export async function GET(request: NextRequest) {
   const authUser = await getAuthenticatedUser();
-  if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
+  if (!canAccessMerchantsPages(authUser.department, authUser.isSuperAdmin)) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

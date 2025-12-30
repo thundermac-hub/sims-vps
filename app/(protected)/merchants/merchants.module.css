@@ -315,6 +315,19 @@
   margin-bottom: 0;
 }
 
+.outletDetailCell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.outletDetailActions {
+  margin-top: auto;
+  display: flex;
+  justify-content: flex-end;
+  align-self: flex-end;
+}
+
 .mapLink {
   display: inline-flex;
   align-items: center;

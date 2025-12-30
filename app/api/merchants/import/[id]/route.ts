@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-user';
-import { canAccessSupportPages } from '@/lib/branding';
+import { canAccessMerchantsPages } from '@/lib/branding';
 import { getFranchiseImportJob } from '@/lib/franchise-cache';
 
 export const runtime = 'nodejs';
@@ -10,7 +10,7 @@ type Params = { id: string };
 
 export async function GET(_request: NextRequest, context: { params: Promise<Params> }) {
   const authUser = await getAuthenticatedUser();
-  if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
+  if (!canAccessMerchantsPages(authUser.department, authUser.isSuperAdmin)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

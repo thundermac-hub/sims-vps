@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/auth-user';
-import { canAccessSupportPages } from '@/lib/branding';
+import { canAccessMerchantsPages } from '@/lib/branding';
 import { startFranchiseImport } from '@/lib/franchise-cache';
 
 export const runtime = 'nodejs';
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST() {
   const authUser = await getAuthenticatedUser();
-  if (!canAccessSupportPages(authUser.department, authUser.isSuperAdmin)) {
+  if (!canAccessMerchantsPages(authUser.department, authUser.isSuperAdmin)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
