@@ -61,8 +61,11 @@ CREATE TABLE IF NOT EXISTS users (
   name VARCHAR(255),
   department VARCHAR(255),
   role VARCHAR(255),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 );
+
+CALL add_column_if_missing('users', 'is_active', 'BOOLEAN NOT NULL DEFAULT TRUE');
 
 CREATE TABLE IF NOT EXISTS support_requests (
   id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

@@ -18,6 +18,7 @@ export interface ManagedUser {
   name: string | null;
   department: string | null;
   role: UserRole | null;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -52,6 +53,7 @@ export interface UpdateUserInput {
   name?: string | null;
   department?: string | null;
   role?: UserRole | null;
+  isActive?: boolean;
 }
 
 type UserRow = {
@@ -62,6 +64,7 @@ type UserRow = {
   role: UserRole | null;
   created_at?: string;
   password_hash?: string | null;
+  is_active?: boolean | null;
 };
 
 function mapManagedUser(row: UserRow): ManagedUser {
@@ -71,6 +74,7 @@ function mapManagedUser(row: UserRow): ManagedUser {
     name: (row.name ?? null) as string | null,
     department: (row.department ?? null) as string | null,
     role: (row.role ?? null) as UserRole | null,
+    is_active: row.is_active ?? true,
     created_at: String(row.created_at ?? ''),
   };
 }
@@ -79,7 +83,7 @@ export async function listUsers(): Promise<ManagedUser[]> {
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from<UserRow>('users')
-    .select('id, email, name, department, role, created_at')
+    .select('id, email, name, department, role, is_active, created_at')
     .order('created_at', { ascending: true });
 
   if (error) {
@@ -94,12 +98,17 @@ export async function listUsers(): Promise<ManagedUser[]> {
   return rows.map((row) => mapManagedUser(row));
 }
 
-export async function listMerchantSuccessUsers(): Promise<MsPicUser[]> {
+export async function listMerchantSuccessUsers(
+  options: { includeInactive?: boolean } = {},
+): Promise<MsPicUser[]> {
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from<UserRow>('users')
-    .select('id, email, name, department, role')
-    .order('name', { ascending: true });
+  const includeInactive = options.includeInactive ?? false;
+  let query = supabase.from<UserRow>('users').select('id, email, name, department, role');
+  if (!includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.order('name', { ascending: true });
 
   if (error) {
     throw error;
@@ -124,18 +133,27 @@ export async function listMerchantSuccessUsers(): Promise<MsPicUser[]> {
     });
 }
 
-export async function getUserByEmail(email: string): Promise<ManagedUser | null> {
+export async function getUserByEmail(
+  email: string,
+  options: { includeInactive?: boolean } = {},
+): Promise<ManagedUser | null> {
   const normalised = email.trim().toLowerCase();
   if (!normalised) {
     return null;
   }
 
+  const includeInactive = options.includeInactive ?? false;
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from<UserRow>('users')
-    .select('id, email, name, department, role, created_at')
-    .eq('email', normalised)
-    .maybeSingle();
+    .select('id, email, name, department, role, is_active, created_at')
+    .eq('email', normalised);
+
+  if (!includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throw error;
@@ -148,16 +166,25 @@ export async function getUserByEmail(email: string): Promise<ManagedUser | null>
   return mapManagedUser(data as UserRow);
 }
 
-export async function getUserById(id: number): Promise<ManagedUser | null> {
+export async function getUserById(
+  id: number,
+  options: { includeInactive?: boolean } = {},
+): Promise<ManagedUser | null> {
   if (!Number.isFinite(id)) {
     return null;
   }
+  const includeInactive = options.includeInactive ?? false;
   const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from<UserRow>('users')
-    .select('id, email, name, department, role, created_at')
-    .eq('id', id)
-    .maybeSingle();
+    .select('id, email, name, department, role, is_active, created_at')
+    .eq('id', id);
+
+  if (!includeInactive) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error) {
     throw error;
@@ -181,6 +208,7 @@ export async function getUserAuthRecord(email: string): Promise<UserAuthRecord |
     .from<UserRow>('users')
     .select('id, email, name, department, role, password_hash')
     .eq('email', normalised)
+    .eq('is_active', true)
     .maybeSingle();
 
   if (error) {
@@ -223,7 +251,7 @@ export async function createUser(input: CreateUserInput): Promise<ManagedUser> {
   const { data, error } = await supabase
     .from<UserRow>('users')
     .insert(payload)
-    .select('id, email, name, department, role, created_at')
+    .select('id, email, name, department, role, is_active, created_at')
     .single();
 
   if (error) {
@@ -252,6 +280,9 @@ export async function updateUser(id: number, input: UpdateUserInput): Promise<Ma
   if (typeof input.role !== 'undefined') {
     payload.role = input.role?.toString() ?? null;
   }
+  if (typeof input.isActive === 'boolean') {
+    payload.is_active = input.isActive;
+  }
   if (input.password) {
     payload.password_hash = hashPassword(input.password);
   }
@@ -264,7 +295,7 @@ export async function updateUser(id: number, input: UpdateUserInput): Promise<Ma
     .from<UserRow>('users')
     .update(payload)
     .eq('id', id)
-    .select('id, email, name, department, role, created_at')
+    .select('id, email, name, department, role, is_active, created_at')
     .single();
 
   if (error) {

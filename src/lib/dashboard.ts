@@ -83,7 +83,7 @@ export async function getDashboardMetrics(): Promise<DashboardMetrics> {
         filterArchived,
       ),
       applyArchivedFilter(baseSelect('issue_type').in('status', ['Open', 'In Progress', 'Pending Customer'] as RequestStatus[]), filterArchived),
-      listMerchantSuccessUsers(),
+      listMerchantSuccessUsers({ includeInactive: true }),
     ]);
 
   let metricsResult;

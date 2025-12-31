@@ -55,7 +55,10 @@ export default async function TicketsPage() {
   const viewState = parseViewState(cookieStore.get(TICKETS_VIEW_COOKIE)?.value);
   const perPage = viewState.perPage;
   let page = Math.max(1, viewState.page);
-  const [msPicUsers, allUsers] = await Promise.all([listMerchantSuccessUsers(), listUsers()]);
+  const [msPicUsers, allUsers] = await Promise.all([
+    listMerchantSuccessUsers({ includeInactive: false }),
+    listUsers(),
+  ]);
   const msPicOptions = msPicUsers.map((user) => {
     const label = user.name?.trim() || formatUserDisplayName(user.email) || user.email || `User #${user.id}`;
     return { id: user.id, label };

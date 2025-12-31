@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import styles from './users.module.css';
 import type { ManagedUser } from '@/lib/users';
 
@@ -8,31 +9,33 @@ interface EditUserModalProps {
   user: ManagedUser;
   timezone: string;
   updateAction: (formData: FormData) => Promise<void>;
-  deleteAction: (formData: FormData) => Promise<void>;
-  deleteDisabled: boolean;
+  statusActionDisabled: boolean;
   departmentOptions: readonly string[];
   roleOptions: readonly string[];
   adminRoleOptions: readonly string[];
   isSuperAdmin: boolean;
   fixedDepartment: string | null;
-  currentUserId: number | null;
 }
 
 export default function EditUserModal({
   user,
   timezone,
   updateAction,
-  deleteAction,
-  deleteDisabled,
+  statusActionDisabled,
   departmentOptions,
   roleOptions,
   adminRoleOptions,
   isSuperAdmin,
   fixedDepartment,
-  currentUserId,
 }: EditUserModalProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const isSelf = currentUserId != null && currentUserId === user.id;
+  const isInactive = !user.is_active;
+  const disableStatusAction = !isInactive && statusActionDisabled;
+  const statusCopy = isInactive
+    ? 'Restores access and assignment availability.'
+    : 'Revokes access and removes from assignment lists.';
+  const statusLabel = isInactive ? 'Reactivate User' : 'Set as Inactive';
+  const statusHref = `/users/confirm?id=${encodeURIComponent(String(user.id))}&next=${isInactive ? 'active' : 'inactive'}`;
   const createdDisplay = user.created_at
     ? new Intl.DateTimeFormat('en-MY', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone }).format(
         new Date(user.created_at),
@@ -54,7 +57,7 @@ export default function EditUserModal({
                   {user.name ?? user.email}
                 </h3>
                 <p className={styles.userModalMeta}>
-                  Created {createdDisplay} · ID #{user.id}
+                  Created {createdDisplay} · ID #{user.id} · {user.is_active ? 'Active' : 'Inactive'}
                 </p>
               </div>
               <button type="button" className={styles.userModalClose} aria-label="Close" onClick={() => setIsOpen(false)}>
@@ -143,16 +146,27 @@ export default function EditUserModal({
                   </button>
                 </div>
               </form>
-              <form action={deleteAction} className={styles.userModalDanger}>
-                <input type="hidden" name="id" value={user.id} />
+              <div className={styles.userModalDanger}>
                 <div>
-                  <p className={styles.userModalDangerTitle}>Delete this user</p>
-                  <p className={styles.userModalDangerCopy}>This action cannot be undone.</p>
+                  <p className={styles.userModalDangerTitle}>{statusLabel}</p>
+                  <p className={styles.userModalDangerCopy}>{statusCopy}</p>
                 </div>
-                <button type="submit" className={styles.dangerButton} disabled={deleteDisabled}>
-                  {deleteDisabled ? 'Cannot delete self' : 'Delete user'}
-                </button>
-              </form>
+                <Link
+                  href={statusHref}
+                  className={`${styles.buttonLink} ${
+                    isInactive ? styles.primaryButton : styles.dangerButton
+                  } ${disableStatusAction ? styles.buttonDisabled : ''}`}
+                  aria-disabled={disableStatusAction}
+                  tabIndex={disableStatusAction ? -1 : 0}
+                  onClick={(event) => {
+                    if (disableStatusAction) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  {statusLabel}
+                </Link>
+              </div>
             </div>
           </div>
         </div>
