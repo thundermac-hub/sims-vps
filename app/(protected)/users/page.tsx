@@ -6,7 +6,6 @@ import {
   CreateUserInput,
   UpdateUserInput,
   createUser,
-  deleteUser,
   getUserById,
   listUsers,
   updateUser,
@@ -83,7 +82,7 @@ async function updateUserAction(formData: FormData) {
     throw new Error("Email cannot be empty.");
   }
 
-  const targetUser = await getUserById(userId);
+  const targetUser = await getUserById(userId, { includeInactive: true });
   if (!targetUser) {
     throw new Error("User not found.");
   }
@@ -126,28 +125,6 @@ async function updateUserAction(formData: FormData) {
   if (authUser.id === userId) {
     revalidatePath("/", "layout");
   }
-}
-
-async function deleteUserAction(formData: FormData) {
-  "use server";
-  const authUser = await assertPrivilegedUser();
-  const userId = Number(formData.get("id"));
-
-  if (!Number.isFinite(userId)) {
-    throw new Error("Invalid user identifier.");
-  }
-  if (authUser.id === userId) {
-    throw new Error("You cannot delete your own account.");
-  }
-  if (!authUser.isSuperAdmin) {
-    const targetUser = await getUserById(userId);
-    if (targetUser && targetUser.department !== authUser.department) {
-      throw new Error("You cannot delete users outside your department.");
-    }
-  }
-
-  await deleteUser(userId);
-  revalidatePath("/users");
 }
 
 export default async function UsersPage() {
@@ -221,7 +198,7 @@ export default async function UsersPage() {
               </thead>
               <tbody>
                 {visibleUsers.map((user) => {
-                  const deleteDisabled = authUser.id === user.id;
+                  const statusActionDisabled = authUser.id === user.id;
                   const createdDisplay = user.created_at
                     ? userCreatedFormatter.format(new Date(user.created_at))
                     : "—";
@@ -231,6 +208,7 @@ export default async function UsersPage() {
                         <div className={styles.stackedCell}>
                           <span className={styles.primaryText}>{user.name ?? "—"}</span>
                           <span className={styles.secondaryText}>ID #{user.id}</span>
+                          {!user.is_active ? <span className={styles.inactiveBadge}>Inactive</span> : null}
                         </div>
                       </td>
                       <td>
@@ -248,14 +226,12 @@ export default async function UsersPage() {
                           user={user}
                           timezone={env.timezone}
                           updateAction={updateUserAction}
-                          deleteAction={deleteUserAction}
-                          deleteDisabled={deleteDisabled}
+                          statusActionDisabled={statusActionDisabled}
                           departmentOptions={DEPARTMENT_OPTIONS}
                           roleOptions={ROLE_OPTIONS}
                           adminRoleOptions={ADMIN_ROLE_OPTIONS}
                           isSuperAdmin={authUser.isSuperAdmin}
                           fixedDepartment={authUser.department ?? null}
-                          currentUserId={authUser.id}
                         />
                       </td>
                     </tr>

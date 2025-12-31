@@ -152,6 +152,19 @@
   cursor: pointer;
 }
 
+.buttonLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.buttonDisabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .usersTableWrapper {
   width: 100%;
   overflow-x: auto;
@@ -234,6 +247,17 @@
   color: #6b7280;
 }
 
+.inactiveBadge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
 .userEmail {
   font-weight: 600;
   color: #2563eb;
@@ -285,6 +309,61 @@
 .usersTableHeader span {
   font-size: 12px;
   color: #6b7280;
+}
+
+.confirmBody {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.confirmCopy {
+  margin: 0;
+  font-size: 14px;
+  color: #4b5563;
+}
+
+.confirmGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.confirmField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.confirmLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.confirmValue {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.confirmWarning {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 13px;
+  border: 1px solid rgba(217, 119, 6, 0.2);
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .userModalBackdrop {
