@@ -2,6 +2,7 @@ import { getSupabaseAdminClient } from './db';
 import {
   fetchFranchiseListRaw,
   toFranchiseSummary,
+  type FranchiseAccountFilters,
   type FranchiseOutletSummary,
   type FranchiseSummary,
 } from './franchise';
@@ -82,11 +83,50 @@ const normaliseString = (value: unknown): string | null => {
   return null;
 };
 
+const normaliseBoolean = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.trim().toLowerCase();
+    if (!cleaned) {
+      return null;
+    }
+    if (cleaned === 'true' || cleaned === '1' || cleaned === 'yes' || cleaned === 'y') {
+      return true;
+    }
+    if (cleaned === 'false' || cleaned === '0' || cleaned === 'no' || cleaned === 'n') {
+      return false;
+    }
+  }
+  return null;
+};
+
 const pickField = (record: Record<string, unknown>, keys: string[]): string | null => {
   for (const key of keys) {
     if (key in record) {
       const value = normaliseString(record[key]);
       if (value) {
+        return value;
+      }
+    }
+  }
+  return null;
+};
+
+const pickBooleanField = (record: Record<string, unknown>, keys: string[]): boolean | null => {
+  for (const key of keys) {
+    if (key in record) {
+      const value = normaliseBoolean(record[key]);
+      if (value !== null) {
         return value;
       }
     }
@@ -167,8 +207,11 @@ const parseFranchiseDetails = (
   name: string | null;
   company: string | null;
   companyAddress: string | null;
+  timezone: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  closedAccount: boolean | null;
+  testAccount: boolean | null;
 } | null => {
   const raw = parseJsonValue(value);
   if (!raw || typeof raw !== 'object') {
@@ -180,8 +223,11 @@ const parseFranchiseDetails = (
     name: pickField(record, ['name', 'franchise_name', 'franchiseName', 'merchant_name', 'merchantName']),
     company: pickField(record, ['company', 'company_name', 'companyName']),
     companyAddress: pickField(record, ['company_address', 'companyAddress']),
+    timezone: pickField(record, ['timezone', 'time_zone', 'timeZone', 'tz']),
     createdAt: pickField(record, ['created_at', 'createdAt']),
     updatedAt: pickField(record, ['updated_at', 'updatedAt']),
+    closedAccount: pickBooleanField(record, ['closed_account', 'closedAccount']),
+    testAccount: pickBooleanField(record, ['test_account', 'testAccount']),
   };
 };
 
@@ -224,13 +270,54 @@ const mapCacheRow = (row: FranchiseCacheRow): FranchiseSummary => {
     name: row.franchise_name ?? details?.name ?? null,
     company: details?.company ?? null,
     companyAddress: details?.companyAddress ?? null,
+    timezone: details?.timezone ?? null,
     createdAt: details?.createdAt ?? null,
     updatedAt: details?.updatedAt ?? null,
+    closedAccount: details?.closedAccount ?? null,
+    testAccount: details?.testAccount ?? null,
     outlets: parseOutletList(row.outlets_json),
   };
 };
 
 const mapCacheRows = (rows: FranchiseCacheRow[]): FranchiseSummary[] => rows.map(mapCacheRow);
+
+const TRUTHY_JSON_VALUES = "('true','1','yes','y')";
+
+const buildAccountFilterSql = (filters?: FranchiseAccountFilters): string => {
+  const conditions: string[] = [];
+  const accountType = filters?.accountType ?? 'all';
+  const closedExpr = `LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(franchise_json, '$.closed_account')), 'false'))`;
+  const testExpr = `LOWER(COALESCE(JSON_UNQUOTE(JSON_EXTRACT(franchise_json, '$.test_account')), 'false'))`;
+
+  if (accountType === 'closed') {
+    conditions.push(`${closedExpr} IN ${TRUTHY_JSON_VALUES}`);
+  } else if (accountType === 'test') {
+    conditions.push(`${closedExpr} NOT IN ${TRUTHY_JSON_VALUES}`);
+    conditions.push(`${testExpr} IN ${TRUTHY_JSON_VALUES}`);
+  } else if (accountType === 'live') {
+    conditions.push(`${closedExpr} NOT IN ${TRUTHY_JSON_VALUES}`);
+    conditions.push(`${testExpr} NOT IN ${TRUTHY_JSON_VALUES}`);
+  }
+
+  return conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '';
+};
+
+const matchesAccountFilters = (franchise: FranchiseSummary, filters?: FranchiseAccountFilters): boolean => {
+  const accountType = filters?.accountType ?? 'all';
+  const isClosed = franchise.closedAccount === true;
+  const isTest = franchise.testAccount === true;
+
+  if (accountType === 'closed') {
+    return isClosed;
+  }
+  if (accountType === 'test') {
+    return !isClosed && isTest;
+  }
+  if (accountType === 'live') {
+    return !isClosed && !isTest;
+  }
+  return true;
+};
 
 type SortKey = 'fid' | 'franchise' | 'outlets';
 type SortDirection = 'asc' | 'desc';
@@ -332,10 +419,30 @@ const matchesFranchiseQuery = (franchise: FranchiseSummary, query: string): bool
   return values.some((value) => value.toLowerCase().includes(trimmed));
 };
 
+const CACHE_SELECT_COLUMNS = 'fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index';
+
+const buildSortSql = (sort?: SortOptions): string => {
+  if (!sort) {
+    return 'ORDER BY import_index DESC';
+  }
+  const direction = sort.direction === 'asc' ? 'ASC' : 'DESC';
+  if (sort.key === 'fid') {
+    return `ORDER BY CAST(fid AS UNSIGNED) ${direction}, import_index DESC`;
+  }
+  if (sort.key === 'franchise') {
+    return `ORDER BY franchise_name ${direction}, import_index DESC`;
+  }
+  if (sort.key === 'outlets') {
+    return `ORDER BY outlet_count ${direction}, import_index DESC`;
+  }
+  return 'ORDER BY import_index DESC';
+};
+
 export async function listCachedFranchises(
   page: number,
   perPage: number,
   sort?: SortOptions,
+  filters?: FranchiseAccountFilters,
 ): Promise<{
   franchises: FranchiseSummary[];
   totalCount: number;
@@ -344,35 +451,25 @@ export async function listCachedFranchises(
   const safePerPage = Number.isFinite(perPage) && perPage > 0 ? Math.floor(perPage) : 25;
   const offset = (safePage - 1) * safePerPage;
   const supabase = getSupabaseAdminClient();
+  const filterSql = buildAccountFilterSql(filters);
+  const whereSql = `WHERE is_active = 1 AND outlet_count >= 1 ${filterSql}`.trim();
+  const orderSql = buildSortSql(sort);
 
-  let query = supabase
-    .from<FranchiseCacheRow>('franchise_cache')
-    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index', { count: 'exact' })
-    .eq('is_active', true)
-    .gte('outlet_count', 1);
+  const countRows = await supabase.query<{ count: number | string }>(
+    `SELECT COUNT(*) as count FROM franchise_cache ${whereSql}`,
+  );
+  const totalCountRaw = countRows[0]?.count ?? 0;
+  const totalCount = typeof totalCountRaw === 'string' ? Number(totalCountRaw) : Number(totalCountRaw);
 
-  if (sort?.key === 'fid') {
-    query = query.order('CAST(fid AS UNSIGNED)', { ascending: sort.direction === 'asc' });
-  } else if (sort?.key === 'franchise') {
-    query = query.order('franchise_name', { ascending: sort.direction === 'asc' });
-  } else if (sort?.key === 'outlets') {
-    query = query.order('outlet_count', { ascending: sort.direction === 'asc' });
-  }
-
-  query = query.order('import_index', { ascending: false }).range(offset, offset + safePerPage - 1);
-
-  const { data, error, count } = await query;
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const rows = await supabase.query<FranchiseCacheRow>(
+    `SELECT ${CACHE_SELECT_COLUMNS} FROM franchise_cache ${whereSql} ${orderSql} LIMIT ? OFFSET ?`,
+    [safePerPage, offset],
+  );
   const franchises = mapCacheRows(rows);
 
   return {
     franchises,
-    totalCount: typeof count === 'number' ? count : 0,
+    totalCount: Number.isFinite(totalCount) ? totalCount : 0,
   };
 }
 
@@ -402,36 +499,26 @@ export async function getCachedFranchiseByFid(fid: string): Promise<FranchiseSum
   return mapCacheRow(data);
 }
 
-export async function listAllCachedFranchises(sort?: SortOptions): Promise<FranchiseSummary[]> {
+export async function listAllCachedFranchises(
+  sort?: SortOptions,
+  filters?: FranchiseAccountFilters,
+): Promise<FranchiseSummary[]> {
   const supabase = getSupabaseAdminClient();
+  const filterSql = buildAccountFilterSql(filters);
+  const whereSql = `WHERE is_active = 1 AND outlet_count >= 1 ${filterSql}`.trim();
+  const orderSql = buildSortSql(sort);
 
-  let query = supabase
-    .from<FranchiseCacheRow>('franchise_cache')
-    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index')
-    .eq('is_active', true)
-    .gte('outlet_count', 1);
-
-  if (sort?.key === 'fid') {
-    query = query.order('CAST(fid AS UNSIGNED)', { ascending: sort.direction === 'asc' });
-  } else if (sort?.key === 'franchise') {
-    query = query.order('franchise_name', { ascending: sort.direction === 'asc' });
-  } else if (sort?.key === 'outlets') {
-    query = query.order('outlet_count', { ascending: sort.direction === 'asc' });
-  }
-
-  query = query.order('import_index', { ascending: false });
-
-  const { data, error } = await query;
-
-  if (error) {
-    throw error;
-  }
-
-  const rows = Array.isArray(data) ? data : data ? [data] : [];
+  const rows = await supabase.query<FranchiseCacheRow>(
+    `SELECT ${CACHE_SELECT_COLUMNS} FROM franchise_cache ${whereSql} ${orderSql}`,
+  );
   return mapCacheRows(rows);
 }
 
-export async function searchCachedFranchises(query: string, sort?: SortOptions): Promise<FranchiseSummary[]> {
+export async function searchCachedFranchises(
+  query: string,
+  sort?: SortOptions,
+  filters?: FranchiseAccountFilters,
+): Promise<FranchiseSummary[]> {
   const trimmed = query.trim();
   if (!trimmed) {
     return [];
@@ -439,7 +526,7 @@ export async function searchCachedFranchises(query: string, sort?: SortOptions):
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from<FranchiseCacheRow>('franchise_cache')
-    .select('fid, franchise_name, franchise_json, outlets_json, outlet_count, import_index')
+    .select(CACHE_SELECT_COLUMNS)
     .eq('is_active', true)
     .gte('outlet_count', 1)
     .order('import_index', { ascending: false });
@@ -449,7 +536,9 @@ export async function searchCachedFranchises(query: string, sort?: SortOptions):
   }
 
   const rows = Array.isArray(data) ? data : data ? [data] : [];
-  const franchises = mapCacheRows(rows).filter((franchise) => matchesFranchiseQuery(franchise, trimmed));
+  const franchises = mapCacheRows(rows)
+    .filter((franchise) => matchesFranchiseQuery(franchise, trimmed))
+    .filter((franchise) => matchesAccountFilters(franchise, filters));
   if (sort) {
     return sortFranchises(franchises, sort);
   }
@@ -498,6 +587,33 @@ export async function getFranchiseImportJob(jobId: number): Promise<FranchiseImp
   }
 
   return mapJobRow(data);
+}
+
+export async function getLatestCompletedFranchiseImport(): Promise<
+  Pick<FranchiseImportJob, 'status' | 'startedAt' | 'finishedAt'> | null
+> {
+  const supabase = getSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from<FranchiseImportJobRow>('franchise_import_jobs')
+    .select('status, started_at, finished_at')
+    .eq('status', 'completed')
+    .order('finished_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    status: data.status,
+    startedAt: formatDateValue(data.started_at),
+    finishedAt: formatDateValue(data.finished_at),
+  };
 }
 
 export async function startFranchiseImport(

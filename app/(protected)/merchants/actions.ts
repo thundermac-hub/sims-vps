@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { MERCHANTS_VIEW_COOKIE, MERCHANTS_VIEW_COOKIE_MAX_AGE } from '@/lib/preferences';
 import { PER_PAGE_OPTIONS, type SortDirection, type SortKey } from './constants';
 import { parseMerchantsViewState } from './view-state';
+import type { AccountTypeFilter } from '@/lib/franchise';
 
 const parsePageValue = (value: unknown, fallback: number): number => {
   const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : Number(value);
@@ -26,6 +27,13 @@ const parseSortKey = (value: unknown, fallback: SortKey): SortKey => {
 
 const parseSortDirection = (value: unknown, fallback: SortDirection): SortDirection => {
   if (value === 'asc' || value === 'desc') {
+    return value;
+  }
+  return fallback;
+};
+
+const parseAccountType = (value: unknown, fallback: AccountTypeFilter): AccountTypeFilter => {
+  if (value === 'live' || value === 'test' || value === 'closed' || value === 'all') {
     return value;
   }
   return fallback;
@@ -120,5 +128,29 @@ export async function changeMerchantsSortAction(formData: FormData) {
     page: 1,
   };
   await persistViewState(next);
+  await revalidatePath('/merchants');
+}
+
+export async function changeMerchantsAccountFiltersAction(formData: FormData) {
+  'use server';
+  const rawAccountType = formData.get('accountType');
+  const intent = formData.get('intent');
+  const shouldRedirect = intent !== 'instant';
+
+  const cookieStore = await cookies();
+  const current = parseMerchantsViewState(cookieStore.get(MERCHANTS_VIEW_COOKIE)?.value);
+  const nextAccountType = parseAccountType(rawAccountType, current.accountType);
+  const next = {
+    ...current,
+    accountType: nextAccountType,
+    page: 1,
+  };
+
+  await persistViewState(next);
+
+  if (shouldRedirect) {
+    redirect('/merchants');
+  }
+
   await revalidatePath('/merchants');
 }

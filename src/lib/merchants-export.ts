@@ -1,4 +1,4 @@
-import type { FranchiseSummary } from './franchise';
+import type { AccountTypeFilter, FranchiseSummary } from './franchise';
 import { listAllCachedFranchises, searchCachedFranchises } from './franchise-cache';
 
 type SortKey = 'fid' | 'franchise' | 'outlets';
@@ -8,6 +8,7 @@ type SortOptions = { key: SortKey; direction: SortDirection };
 export type MerchantsExportFilters = {
   query?: string;
   sort?: SortOptions;
+  accountType?: AccountTypeFilter;
 };
 
 type MerchantExportRow = {
@@ -29,6 +30,17 @@ type MerchantExportRow = {
 };
 
 const normalizeText = (value: string | null | undefined): string => (value ?? '').trim();
+
+const formatFranchiseExportName = (name: string | null | undefined, closedAccount?: boolean | null): string => {
+  const cleaned = normalizeText(name);
+  if (!closedAccount) {
+    return cleaned;
+  }
+  if (!cleaned) {
+    return '[CLOSED]';
+  }
+  return cleaned.toUpperCase().includes('[CLOSED]') ? cleaned : `[CLOSED] ${cleaned}`;
+};
 
 const normalizeDateInput = (value: string): string =>
   value.replace(/([+-]\d{2})(\d{2})$/, (_match, hours, minutes) => `${hours}:${minutes}`);
@@ -87,7 +99,7 @@ const buildExportRows = (franchises: FranchiseSummary[]): MerchantExportRow[] =>
   franchises.forEach((franchise) => {
     const baseRow = {
       fid: normalizeText(franchise.fid),
-      franchiseName: normalizeText(franchise.name),
+      franchiseName: formatFranchiseExportName(franchise.name, franchise.closedAccount),
       company: normalizeText(franchise.company),
       companyAddress: normalizeText(franchise.companyAddress),
       franchiseCreatedAt: formatDateTime(franchise.createdAt),
@@ -130,9 +142,12 @@ const buildExportRows = (franchises: FranchiseSummary[]): MerchantExportRow[] =>
 
 export async function fetchMerchantsExportRows(filters: MerchantsExportFilters): Promise<MerchantExportRow[]> {
   const query = filters.query?.trim() ?? '';
+  const accountFilters = {
+    accountType: filters.accountType ?? 'all',
+  };
   const franchises = query
-    ? await searchCachedFranchises(query, filters.sort)
-    : await listAllCachedFranchises(filters.sort);
+    ? await searchCachedFranchises(query, filters.sort, accountFilters)
+    : await listAllCachedFranchises(filters.sort, accountFilters);
   return buildExportRows(franchises);
 }
 

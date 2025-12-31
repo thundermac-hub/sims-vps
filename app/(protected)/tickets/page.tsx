@@ -7,7 +7,7 @@ import StatusFilterSelect from './StatusFilterSelect';
 import DateRangePicker from './DateRangePicker';
 import RowsPerPageControls from './RowsPerPageControls';
 import PaginationControlButtons from './PaginationControlButtons';
-import TicketViewButton from './TicketViewButton';
+import TicketsTable from './TicketsTable';
 import { RequestFilters, fetchRequestsWithSignedUrls, storeFranchiseOutletResolution } from '@/lib/requests';
 import { env } from '@/lib/env';
 import { fetchFranchiseOutlet, type FranchiseLookupResult } from '@/lib/franchise';
@@ -178,6 +178,8 @@ export default async function TicketsPage() {
     ) => {
       const q = query.toLowerCase();
       const values: (string | null | undefined)[] = [
+        String(request.id),
+        `#${request.id}`,
         request.merchant_name,
         request.outlet_name,
         request.phone_number,
@@ -290,6 +292,134 @@ export default async function TicketsPage() {
     );
   }
 
+  const formatDuration = (start: Date, end: Date): string => {
+    const diff = Math.max(0, end.getTime() - start.getTime());
+    const totalMinutes = Math.floor(diff / 60000);
+    const days = Math.floor(totalMinutes / (60 * 24));
+    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+    const minutes = totalMinutes % 60;
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0 || days > 0) parts.push(`${hours}h`);
+    parts.push(`${minutes}m`);
+    return parts.join(' ');
+  };
+
+  const ticketRows = requests.map((request) => {
+    const phoneDigits = request.phone_number.replace(/\D/g, '');
+    const signedBy =
+      authUser.id && userDisplayById.get(String(authUser.id))
+        ? userDisplayById.get(String(authUser.id))!
+        : authUser.name || 'Slurp Merchant Success';
+
+    const messageTemplate = [
+      `Ticket ID: ${request.id}`,
+      '',
+      `Hi ${request.merchant_name},`,
+      '',
+      'Thanks for your patience. I’m looking into your issue now:',
+      [request.issue_type, request.issue_subcategory1, request.issue_subcategory2].filter(Boolean).join(' · '),
+      '',
+      'If you have any extra details or questions, just reply here. ✨',
+      '',
+      'Best regards,',
+      signedBy,
+      'Slurp Merchant Success Team',
+    ]
+      .filter((line) => line !== null && line !== undefined)
+      .join('\n');
+    const whatsappHref = `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phoneDigits)}&text=${encodeURIComponent(messageTemplate)}`;
+    const fidHref = request.fid
+      ? `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(request.fid)}`
+      : null;
+
+    const updatedByIdRaw = request.updated_by ?? null;
+    const updatedByDisplay = resolveUserDisplay(updatedByIdRaw, userDisplayById);
+    const franchiseLookup = franchiseLookupByRequestId.get(request.id) ?? null;
+    const dbFranchise = request.franchise_name_resolved?.trim() || null;
+    const dbOutletResolved = request.outlet_name_resolved?.trim() || null;
+    const franchiseDisplay =
+      dbFranchise ??
+      (franchiseLookup && franchiseLookup.found ? franchiseLookup.franchiseName ?? null : null);
+    const outletDisplay =
+      dbOutletResolved ??
+      (franchiseLookup && franchiseLookup.found ? franchiseLookup.outletName ?? null : null) ??
+      request.outlet_name ??
+      null;
+    const finalFranchise = franchiseDisplay ?? NO_OUTLET_FOUND;
+    const finalOutlet = outletDisplay ?? NO_OUTLET_FOUND;
+    const csat = csatLinks.get(request.id) ?? null;
+
+    const ticketPayload = {
+      id: request.id,
+      merchantName: request.merchant_name,
+      outletName: request.outlet_name,
+      phoneNumber: request.phone_number,
+      email: request.email,
+      fid: request.fid,
+      oid: request.oid,
+      issueType: request.issue_type,
+      issueSubcategory1: request.issue_subcategory1,
+      issueSubcategory2: request.issue_subcategory2,
+      issueDescription: request.issue_description,
+      ticketDescription: request.ticket_description ?? '',
+      clickupLink: request.clickup_link,
+      clickupStatus: request.clickup_task_status,
+      attachmentDownloadUrls: request.attachmentDownloadUrls ?? [],
+      status: request.status,
+      createdAt: request.created_at.toISOString(),
+      closedAt: request.closed_at ? request.closed_at.toISOString() : null,
+      updatedAt: request.updated_at.toISOString(),
+      updatedByName: updatedByDisplay ?? null,
+      msPicUserId: request.ms_pic_user_id ?? null,
+      msPicDisplayName:
+        request.ms_pic_user_id != null
+          ? msPicLabelById.get(request.ms_pic_user_id) ?? `User #${request.ms_pic_user_id}`
+          : null,
+      msPicOptions,
+      franchiseResolved: franchiseDisplay ?? null,
+      outletResolved: outletDisplay ?? null,
+      categoryOptions: supportFormSettings.categoryOptions,
+      userDisplayById,
+      csatToken: csat?.token ?? null,
+      csatExpiresAt: csat?.expiresAt.toISOString() ?? null,
+      csatSubmittedAt: csat?.submittedAt ? csat.submittedAt.toISOString() : null,
+      csatIsExpired: csat?.isExpired ?? false,
+      hidden: request.hidden ?? false,
+    };
+
+    const issueSubcategoryLabel =
+      [request.issue_subcategory1, request.issue_subcategory2].filter(Boolean).join(' • ') || '-';
+
+    return {
+      id: request.id,
+      franchiseName: finalFranchise,
+      outletName: finalOutlet,
+      contactName: request.merchant_name,
+      phoneNumber: request.phone_number,
+      whatsappHref,
+      fid: request.fid,
+      fidHref,
+      oid: request.oid,
+      issueType: request.issue_type,
+      issueSubcategoryLabel,
+      clickupLink: request.clickup_link,
+      clickupStatus: request.clickup_task_status,
+      status: request.status,
+      msPicDisplay: request.ms_pic_user_id
+        ? userDisplayById.get(String(request.ms_pic_user_id)) ?? 'Assigned'
+        : 'Unassigned',
+      createdAtLabel: formatDate(request.created_at),
+      createdAtMs: request.created_at.getTime(),
+      closedAtLabel: request.closed_at ? formatDate(request.closed_at) : null,
+      durationLabel: request.closed_at ? formatDuration(request.created_at, request.closed_at) : null,
+      ticketPayload,
+      franchiseResolved: franchiseDisplay ?? null,
+      outletResolved: outletDisplay ?? null,
+      showAttend: Boolean(isMsUser && authUser.id && request.ms_pic_user_id !== authUser.id && request.status === 'Open'),
+    };
+  });
+
   return (
     <div className={styles.page}>
       <TicketsAutoRefresh interval={15000} />
@@ -362,224 +492,23 @@ export default async function TicketsPage() {
           <h2>Tickets</h2>
           <span>{resolvedTotal} results</span>
         </div>
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Merchant / Outlet</th>
-                  <th>Contact</th>
-                  <th>FID / OID</th>
-                  <th>Issue</th>
-                  <th>ClickUp</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className={styles.empty}>
-                    No support requests found.
-                  </td>
-                </tr>
-              ) : (
-                requests.map((request) => {
-                  const phoneDigits = request.phone_number.replace(/\D/g, '');
-                  const signedBy =
-                    authUser.id && userDisplayById.get(String(authUser.id))
-                      ? userDisplayById.get(String(authUser.id))!
-                      : authUser.name || 'Slurp Merchant Success';
-
-                  const messageTemplate = [
-                    `Ticket ID: ${request.id}`,
-                    '',
-                    `Hi ${request.merchant_name},`,
-                    '',
-                    'Thanks for your patience. I’m looking into your issue now:',
-                    [request.issue_type, request.issue_subcategory1, request.issue_subcategory2].filter(Boolean).join(' · '),
-                    '',
-                    'If you have any extra details or questions, just reply here. ✨',
-                    '',
-                    'Best regards,',
-                    signedBy,
-                    'Slurp Merchant Success Team',
-                  ]
-                    .filter((line) => line !== null && line !== undefined)
-                    .join('\n');
-                  const whatsappHref = `https://api.whatsapp.com/send/?phone=${encodeURIComponent(phoneDigits)}&text=${encodeURIComponent(messageTemplate)}`;
-                  const fidHref = `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(request.fid)}`;
-      const updatedByIdRaw = request.updated_by ?? null;
-      const updatedByDisplay = resolveUserDisplay(updatedByIdRaw, userDisplayById);
-                  const franchiseLookup = franchiseLookupByRequestId.get(request.id) ?? null;
-                  const dbFranchise = request.franchise_name_resolved?.trim() || null;
-                  const dbOutletResolved = request.outlet_name_resolved?.trim() || null;
-                  const franchiseDisplay =
-                    dbFranchise ??
-                    (franchiseLookup && franchiseLookup.found ? franchiseLookup.franchiseName ?? null : null);
-                  const outletDisplay =
-                    dbOutletResolved ??
-                    (franchiseLookup && franchiseLookup.found ? franchiseLookup.outletName ?? null : null) ??
-                    request.outlet_name ??
-                    null;
-                  const finalFranchise = franchiseDisplay ?? NO_OUTLET_FOUND;
-                  const finalOutlet = outletDisplay ?? NO_OUTLET_FOUND;
-                  const csat = csatLinks.get(request.id) ?? null;
-                  const ticketPayload = {
-                    id: request.id,
-                    merchantName: request.merchant_name,
-                    outletName: request.outlet_name,
-                    phoneNumber: request.phone_number,
-                    email: request.email,
-                    fid: request.fid,
-                    oid: request.oid,
-                    issueType: request.issue_type,
-                    issueSubcategory1: request.issue_subcategory1,
-                    issueSubcategory2: request.issue_subcategory2,
-                    issueDescription: request.issue_description,
-                    ticketDescription: request.ticket_description ?? '',
-                    clickupLink: request.clickup_link,
-                    clickupStatus: request.clickup_task_status,
-                    attachmentDownloadUrls: request.attachmentDownloadUrls ?? [],
-                    status: request.status,
-                    createdAt: request.created_at.toISOString(),
-                    closedAt: request.closed_at ? request.closed_at.toISOString() : null,
-                    updatedAt: request.updated_at.toISOString(),
-                    updatedByName: updatedByDisplay ?? null,
-                    msPicUserId: request.ms_pic_user_id ?? null,
-                    msPicDisplayName:
-                      request.ms_pic_user_id != null
-                        ? msPicLabelById.get(request.ms_pic_user_id) ?? `User #${request.ms_pic_user_id}`
-                        : null,
-                    msPicOptions,
-                    franchiseResolved: franchiseDisplay ?? null,
-                    outletResolved: outletDisplay ?? null,
-                    categoryOptions: supportFormSettings.categoryOptions,
-                    userDisplayById,
-                    csatToken: csat?.token ?? null,
-                    csatExpiresAt: csat?.expiresAt.toISOString() ?? null,
-                    csatSubmittedAt: csat?.submittedAt ? csat.submittedAt.toISOString() : null,
-                    csatIsExpired: csat?.isExpired ?? false,
-                    hidden: request.hidden ?? false,
-                  };
-                  return (
-                    <tr key={request.id}>
-                      <td data-label="ID">#{request.id}</td>
-                      <td data-label="Merchant / Outlet">
-                        <div className={styles.stackedCell}>
-                          <span className={styles.primaryText}>{finalFranchise}</span>
-                          <span className={styles.secondaryText}>{finalOutlet}</span>
-                        </div>
-                      </td>
-                      <td data-label="Contact">
-                        <div className={styles.stackedCell}>
-                          <span className={styles.primaryText}>{request.merchant_name}</span>
-                          <a className={styles.contactLink} href={whatsappHref} target="_blank" rel="noreferrer">
-                            {request.phone_number}
-                          </a>
-                        </div>
-                      </td>
-                      <td data-label="FID / OID">
-                        <div className={styles.stackedCell}>
-                          <a className={styles.idLink} href={fidHref} target="_blank" rel="noreferrer">
-                            {request.fid}
-                          </a>
-                          <span className={styles.secondaryText}>{request.oid}</span>
-                        </div>
-                      </td>
-                      <td data-label="Issue">
-                        <div className={styles.stackedCell}>
-                          <span className={styles.primaryText}>{request.issue_type}</span>
-                          <span className={styles.secondaryText}>
-                            {[request.issue_subcategory1, request.issue_subcategory2].filter(Boolean).join(' • ') || '-'}
-                          </span>
-                        </div>
-                      </td>
-                      <td data-label="ClickUp">
-                        {request.clickup_link ? (
-                          <div className={styles.clickupCell}>
-                            <a href={request.clickup_link} target="_blank" rel="noreferrer">
-                              Task
-                            </a>
-                            {request.clickup_task_status ? (
-                              <span className={styles.clickupStatus}>{request.clickup_task_status}</span>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className={styles.clickupUnavailable}>-</span>
-                        )}
-                      </td>
-                      <td data-label="Status">
-                        <div className={styles.statusWithPic}>
-                          <span className={`${styles.statusBadge} ${styles[`status${request.status.replace(/\s+/g, '')}`]}`}>
-                            {request.status}
-                          </span>
-                          <span className={styles.statusMsPic}>
-                            {request.ms_pic_user_id ? userDisplayById.get(String(request.ms_pic_user_id)) ?? 'Assigned' : 'Unassigned'}
-                          </span>
-                          {request.closed_at ? (
-                            <span className={styles.statusTooltip}>
-                              Resolved: {formatDate(request.closed_at)}
-                              <br />
-                              Duration: {(() => {
-                                const start = request.created_at;
-                                const end = request.closed_at;
-                                const diff = Math.max(0, end.getTime() - start.getTime());
-                                const totalMinutes = Math.floor(diff / 60000);
-                                const days = Math.floor(totalMinutes / (60 * 24));
-                                const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-                                const minutes = totalMinutes % 60;
-                                const parts = [];
-                                if (days > 0) parts.push(`${days}d`);
-                                if (hours > 0 || days > 0) parts.push(`${hours}h`);
-                                parts.push(`${minutes}m`);
-                                return parts.join(' ');
-                              })()}
-                            </span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td data-label="Created">
-                        <span className={styles.noWrap}>{formatDate(request.created_at)}</span>
-                      </td>
-                      <td data-label="Actions">
-                        <div className={styles.actionsCell}>
-                          {isMsUser && authUser.id && request.ms_pic_user_id !== authUser.id && request.status === 'Open' ? (
-                            <form action={attendTicketAction}>
-                              <input type="hidden" name="id" value={request.id} />
-                              <button type="submit" className={styles.attendButton}>
-                                Attend
-                              </button>
-                            </form>
-                          ) : null}
-                          <TicketViewButton
-                            ticket={ticketPayload}
-                            statusOptions={STATUS_OPTIONS}
-                            timezone={env.timezone}
-                            categoryOptions={supportFormSettings.categoryOptions}
-                            userDisplayById={userDisplayById}
-                            franchiseResolved={franchiseDisplay ?? null}
-                            outletResolved={outletDisplay ?? null}
-                            onSave={updateTicketAction}
-                            onCreateClickUpTask={createClickUpTaskAction}
-                            onLinkClickUpTask={linkClickUpTaskAction}
-                            onUnlinkClickUpTask={unlinkClickUpTaskAction}
-                            onRefreshClickUpStatus={refreshClickUpStatusAction}
-                            onMarkCsatWhatsappSent={markCsatWhatsappSentAction}
-                            clickupEnabled={CLICKUP_ENABLED}
-                            canHideTicket={canHideTicket}
-                            onHideTicket={archiveTicketFormAction}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+        <TicketsTable
+          rows={ticketRows}
+          statusOptions={STATUS_OPTIONS}
+          timezone={env.timezone}
+          categoryOptions={supportFormSettings.categoryOptions}
+          userDisplayById={userDisplayById}
+          onSave={updateTicketAction}
+          onCreateClickUpTask={createClickUpTaskAction}
+          onLinkClickUpTask={linkClickUpTaskAction}
+          onUnlinkClickUpTask={unlinkClickUpTaskAction}
+          onRefreshClickUpStatus={refreshClickUpStatusAction}
+          onMarkCsatWhatsappSent={markCsatWhatsappSentAction}
+          clickupEnabled={CLICKUP_ENABLED}
+          canHideTicket={canHideTicket}
+          onHideTicket={archiveTicketFormAction}
+          onAttendTicket={attendTicketAction}
+        />
         <div className={styles.paginationBar}>
           <div className={styles.paginationPerPage}>
             <span className={styles.paginationLabel}>Rows per page</span>

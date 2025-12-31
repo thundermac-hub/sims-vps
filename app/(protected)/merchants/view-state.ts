@@ -6,6 +6,7 @@ import {
   type SortDirection,
   type SortKey,
 } from './constants';
+import type { AccountTypeFilter } from '@/lib/franchise';
 
 export type MerchantsViewState = {
   query: string | null;
@@ -13,6 +14,7 @@ export type MerchantsViewState = {
   perPage: number;
   sortKey: SortKey;
   sortDirection: SortDirection;
+  accountType: AccountTypeFilter;
 };
 
 export const DEFAULT_VIEW_STATE: MerchantsViewState = {
@@ -21,6 +23,7 @@ export const DEFAULT_VIEW_STATE: MerchantsViewState = {
   perPage: DEFAULT_PER_PAGE,
   sortKey: DEFAULT_SORT_KEY,
   sortDirection: DEFAULT_SORT_DIRECTION,
+  accountType: 'all',
 };
 
 export function parseMerchantsViewState(value: string | undefined | null): MerchantsViewState {
@@ -42,12 +45,17 @@ export function parseMerchantsViewState(value: string | undefined | null): Merch
         : DEFAULT_SORT_KEY;
     const sortDirection: SortDirection =
       parsed.sortDirection === 'asc' || parsed.sortDirection === 'desc' ? parsed.sortDirection : DEFAULT_SORT_DIRECTION;
+    const accountType: AccountTypeFilter =
+      parsed.accountType === 'live' || parsed.accountType === 'test' || parsed.accountType === 'closed'
+        ? parsed.accountType
+        : 'all';
     return {
       query,
       page,
       perPage,
       sortKey,
       sortDirection,
+      accountType,
     };
   } catch {
     return { ...DEFAULT_VIEW_STATE };

@@ -12,7 +12,7 @@ This guide shows how to install Coolify on a VPS and deploy the SIMS app with My
 2. SSH into the VPS and run the official installer:
 
 ```bash
-curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | sudo bash
 ```
 
 3. Open the Coolify URL shown in the installer output and complete the initial setup.

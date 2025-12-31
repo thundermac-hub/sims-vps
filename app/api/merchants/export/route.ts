@@ -33,6 +33,13 @@ const parseSortDirection = (value: string | null): SortDirection => {
   return DEFAULT_SORT_DIRECTION;
 };
 
+const parseAccountType = (value: string | null): 'all' | 'live' | 'test' | 'closed' => {
+  if (value === 'live' || value === 'test' || value === 'closed' || value === 'all') {
+    return value;
+  }
+  return 'all';
+};
+
 const parseFilters = (
   searchParams: URLSearchParams,
   cookieState: ReturnType<typeof parseMerchantsViewState>,
@@ -43,9 +50,12 @@ const parseFilters = (
   const sortDirectionParam = searchParams.get('dir');
   const sortKey = sortKeyParam ? parseSortKey(sortKeyParam) : cookieState.sortKey;
   const sortDirection = sortDirectionParam ? parseSortDirection(sortDirectionParam) : cookieState.sortDirection;
+  const accountParam = searchParams.get('accountType');
+  const accountType = accountParam ? parseAccountType(accountParam) : cookieState.accountType;
   return {
     query: query || undefined,
     sort: { key: sortKey, direction: sortDirection },
+    accountType,
   };
 };
 

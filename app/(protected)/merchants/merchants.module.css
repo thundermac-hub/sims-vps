@@ -372,9 +372,118 @@
   flex-wrap: wrap;
 }
 
+.filterMenu {
+  position: relative;
+}
+
+.filterButton {
+  list-style: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
+}
+
+.filterButton::-webkit-details-marker {
+  display: none;
+}
+
+.filterButton::marker {
+  content: '';
+}
+
+.filterMenu[open] .filterButton {
+  border-color: #fca5a5;
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.2);
+}
+
+.filterCaret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filterList,
+.exportList {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  min-width: 200px;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 20;
+}
+
+.exportList {
+  min-width: 180px;
+}
+
+.filterItem,
+.exportItem {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f9fafb;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.filterItem:hover,
+.exportItem:hover {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.filterItemActive {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.filterSelected {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+
+.tableTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tableTitleMeta {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
 .searchField {
   flex: 1;
   min-width: 240px;
+  height: 44px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -383,6 +492,7 @@
   padding: 10px 12px;
   background: #ffffff;
   box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+  box-sizing: border-box;
 }
 
 .searchField:focus-within {
@@ -408,6 +518,7 @@
   border: none;
   outline: none;
   width: 100%;
+  height: 100%;
   font-size: 13px;
   background: transparent;
   color: #111827;
@@ -692,6 +803,90 @@
   }
 }
 
+@media (max-width: 920px), (hover: none) and (pointer: coarse) {
+  .searchRow {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .searchRow > * {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .searchField {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 10px;
+    gap: 8px;
+    height: 40px;
+  }
+
+  .searchInput {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+
+  .filterMenu,
+  .exportMenu {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .filterButton,
+  .exportButton,
+  .importCta {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+    padding: 9px 12px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) and (min-width: 901px) {
+  .searchRow {
+    flex-direction: row;
+    align-items: center;
+    width: auto;
+    gap: 16px;
+  }
+
+  .searchRow > * {
+    width: auto;
+    max-width: none;
+  }
+
+  .searchField {
+    width: auto;
+    min-width: 240px;
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .searchInput {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .filterMenu,
+  .exportMenu {
+    width: auto;
+    max-width: none;
+  }
+
+  .filterButton,
+  .exportButton,
+  .importCta {
+    width: auto;
+    padding: 10px 14px;
+  }
+}
+
 @media (max-width: 720px) {
   .tableWrapper {
     overflow-x: auto;
@@ -738,30 +933,6 @@
   .outletHeader {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .searchRow {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .exportMenu {
-    width: 100%;
-  }
-
-  .exportButton {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .exportList {
-    left: 0;
-    right: 0;
-  }
-
-  .importCta {
-    width: 100%;
-    justify-content: center;
   }
 
   .importModal {

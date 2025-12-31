@@ -7,19 +7,38 @@ import OutletTable from '../OutletTable';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessMerchantsPages, canAccessTicketsPages } from '@/lib/branding';
 import { fetchFranchiseOutlet, type FranchiseLookupResult } from '@/lib/franchise';
-import { getCachedFranchiseByFid } from '@/lib/franchise-cache';
+import { getCachedFranchiseByFid, getLatestCompletedFranchiseImport } from '@/lib/franchise-cache';
 import { fetchRequestsByFid, storeFranchiseOutletResolution } from '@/lib/requests';
 import { NO_OUTLET_FOUND } from '../../tickets/constants';
 import { cleanId, formatDate } from '../../tickets/utils';
+import SupportRequestsTable from '../SupportRequestsTable';
 
 export const dynamic = 'force-dynamic';
 
-const formatFranchiseName = (name: string | null, fid: string | null): string => {
-  const cleaned = (name ?? '').trim();
-  if (cleaned) {
-    return cleaned;
+const IMPORT_TIMEZONE = 'Asia/Kuala_Lumpur';
+
+const formatImportTimestamp = (value: string | null): string => {
+  if (!value) {
+    return 'Not imported yet';
   }
-  return fid ? `Franchise ${fid}` : 'Unnamed franchise';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Not imported yet';
+  }
+  return new Intl.DateTimeFormat('en-MY', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: IMPORT_TIMEZONE,
+  }).format(parsed);
+};
+
+const formatFranchiseName = (name: string | null, fid: string | null, closedAccount?: boolean | null): string => {
+  const cleaned = (name ?? '').trim();
+  const base = cleaned || (fid ? `Franchise ${fid}` : 'Unnamed franchise');
+  if (closedAccount) {
+    return base.toUpperCase().includes('[CLOSED]') ? base : `[CLOSED] ${base}`;
+  }
+  return base;
 };
 
 const normalizeDateInput = (value: string): string =>
@@ -90,9 +109,19 @@ export default async function FranchisePage({ params }: { params: Promise<{ fid:
     notFound();
   }
 
-  const franchiseName = formatFranchiseName(franchise.name, franchise.fid);
+  const franchiseName = formatFranchiseName(franchise.name, franchise.fid, franchise.closedAccount);
   const batcaveLink = buildFranchiseLink(franchise.fid ?? rawFid);
+  let lastImportDisplay = 'Not imported yet';
   let tickets: Awaited<ReturnType<typeof fetchRequestsByFid>>['rows'] = [];
+  let ticketRows: Array<{
+    id: number;
+    merchantName: string;
+    outletName: string;
+    issueType: string;
+    status: string;
+    createdAtMs: number;
+    createdAtLabel: string;
+  }> = [];
   let totalTickets = 0;
   const franchiseLookupByRequestId = new Map<number, FranchiseLookupResult | null>();
 
@@ -146,6 +175,34 @@ export default async function FranchisePage({ params }: { params: Promise<{ fid:
     if (franchiseStoreTasks.length > 0) {
       await Promise.all(franchiseStoreTasks);
     }
+
+    ticketRows = tickets.map((ticket) => {
+      const franchiseLookup = franchiseLookupByRequestId.get(ticket.id) ?? null;
+      const dbOutletResolved = ticket.outlet_name_resolved?.trim() || null;
+      const outletDisplay =
+        dbOutletResolved ??
+        (franchiseLookup && franchiseLookup.found ? franchiseLookup.outletName ?? null : null) ??
+        ticket.outlet_name ??
+        null;
+      const finalOutlet = outletDisplay ?? NO_OUTLET_FOUND;
+      return {
+        id: ticket.id,
+        merchantName: ticket.merchant_name,
+        outletName: finalOutlet,
+        issueType: ticket.issue_type,
+        status: ticket.status,
+        createdAtMs: ticket.created_at.getTime(),
+        createdAtLabel: formatDate(ticket.created_at),
+      };
+    });
+  }
+
+  try {
+    const latestImport = await getLatestCompletedFranchiseImport();
+    const importTimestamp = latestImport?.finishedAt ?? latestImport?.startedAt ?? null;
+    lastImportDisplay = formatImportTimestamp(importTimestamp);
+  } catch (error) {
+    console.error('Failed to load latest franchise import', error);
   }
 
   return (
@@ -174,7 +231,7 @@ export default async function FranchisePage({ params }: { params: Promise<{ fid:
       <section className={ticketStyles.tableCard}>
         <div className={ticketStyles.tableHeader}>
           <h2>Franchise Details</h2>
-          <span className={styles.sectionMeta}>Last synced from cache</span>
+          <span className={styles.sectionMeta}>Last updated: {lastImportDisplay}</span>
         </div>
         <div className={styles.sectionBody}>
           <div className={merchantStyles.detailGrid}>
@@ -189,6 +246,10 @@ export default async function FranchisePage({ params }: { params: Promise<{ fid:
             <div className={merchantStyles.detailItem}>
               <span className={merchantStyles.detailLabel}>Company Address</span>
               <span className={merchantStyles.detailValue}>{formatDetailValue(franchise.companyAddress ?? null)}</span>
+            </div>
+            <div className={merchantStyles.detailItem}>
+              <span className={merchantStyles.detailLabel}>Timezone</span>
+              <span className={merchantStyles.detailValue}>{formatDetailValue(franchise.timezone ?? null)}</span>
             </div>
             <div className={merchantStyles.detailItem}>
               <span className={merchantStyles.detailLabel}>Created At</span>
@@ -218,67 +279,7 @@ export default async function FranchisePage({ params }: { params: Promise<{ fid:
 
       {canSeeTickets ? (
         <section className={ticketStyles.tableCard}>
-          <div className={ticketStyles.tableHeader}>
-            <h2>Support Requests</h2>
-            <span className={styles.sectionMeta}>{totalTickets} total</span>
-          </div>
-          <div className={ticketStyles.tableWrapper}>
-            <table className={`${ticketStyles.table} ${styles.ticketsTable}`}>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Merchant / Outlet</th>
-                  <th>Issue Type</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className={ticketStyles.empty}>
-                      No support requests found for this franchise.
-                    </td>
-                  </tr>
-                ) : (
-                  tickets.map((ticket) => {
-                    const franchiseLookup = franchiseLookupByRequestId.get(ticket.id) ?? null;
-                    const dbOutletResolved = ticket.outlet_name_resolved?.trim() || null;
-                    const outletDisplay =
-                      dbOutletResolved ??
-                      (franchiseLookup && franchiseLookup.found ? franchiseLookup.outletName ?? null : null) ??
-                      ticket.outlet_name ??
-                      null;
-                    const finalOutlet = outletDisplay ?? NO_OUTLET_FOUND;
-
-                    return (
-                      <tr key={ticket.id}>
-                        <td className={styles.ticketId}>#{ticket.id}</td>
-                        <td>
-                          <span>{ticket.merchant_name}</span>
-                          <span className={styles.ticketSecondary}>{finalOutlet}</span>
-                        </td>
-                        <td>{ticket.issue_type}</td>
-                        <td>{ticket.status}</td>
-                        <td>{formatDate(ticket.created_at)}</td>
-                        <td>
-                        <Link className={ticketStyles.viewButton} href={`/merchants/tickets/${ticket.id}`}>
-                          View
-                        </Link>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          {tickets.length < totalTickets ? (
-            <p className={styles.ticketsMeta}>
-              Showing {tickets.length} of {totalTickets} requests. Refine in the tickets view for more.
-            </p>
-          ) : null}
+          <SupportRequestsTable rows={ticketRows} totalTickets={totalTickets} />
         </section>
       ) : null}
     </div>

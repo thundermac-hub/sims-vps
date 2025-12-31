@@ -24,13 +24,22 @@ export type FranchiseOutletSummary = {
   updatedAt?: string | null;
 };
 
+export type AccountTypeFilter = 'all' | 'live' | 'test' | 'closed';
+
+export type FranchiseAccountFilters = {
+  accountType?: AccountTypeFilter;
+};
+
 export type FranchiseSummary = {
   fid: string | null;
   name: string | null;
   company?: string | null;
   companyAddress?: string | null;
+  timezone?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  closedAccount?: boolean | null;
+  testAccount?: boolean | null;
   outlets: FranchiseOutletSummary[];
 };
 
@@ -217,11 +226,50 @@ const franchiseNumber = (value: unknown): number | null => {
   return null;
 };
 
+const franchiseBoolean = (value: unknown): boolean | null => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.trim().toLowerCase();
+    if (!cleaned) {
+      return null;
+    }
+    if (cleaned === 'true' || cleaned === '1' || cleaned === 'yes' || cleaned === 'y') {
+      return true;
+    }
+    if (cleaned === 'false' || cleaned === '0' || cleaned === 'no' || cleaned === 'n') {
+      return false;
+    }
+  }
+  return null;
+};
+
 const pickFranchiseField = (record: Record<string, unknown>, keys: string[]): string | null => {
   for (const key of keys) {
     if (key in record) {
       const value = franchiseString(record[key]);
       if (value) {
+        return value;
+      }
+    }
+  }
+  return null;
+};
+
+const pickFranchiseBooleanField = (record: Record<string, unknown>, keys: string[]): boolean | null => {
+  for (const key of keys) {
+    if (key in record) {
+      const value = franchiseBoolean(record[key]);
+      if (value !== null) {
         return value;
       }
     }
@@ -278,8 +326,11 @@ export const toFranchiseSummary = (raw: unknown): FranchiseSummary | null => {
   const name = pickFranchiseField(record, ['name', 'franchise_name', 'franchiseName', 'merchant_name', 'merchantName']);
   const company = pickFranchiseField(record, ['company', 'company_name', 'companyName']);
   const companyAddress = pickFranchiseField(record, ['company_address', 'companyAddress']);
+  const timezone = pickFranchiseField(record, ['timezone', 'time_zone', 'timeZone', 'tz']);
   const createdAt = pickFranchiseField(record, ['created_at', 'createdAt']);
   const updatedAt = pickFranchiseField(record, ['updated_at', 'updatedAt']);
+  const closedAccount = pickFranchiseBooleanField(record, ['closed_account', 'closedAccount']);
+  const testAccount = pickFranchiseBooleanField(record, ['test_account', 'testAccount']);
   const outlets = normalizeOutlets(
     record.outlets ?? record.outlet ?? record.stores ?? record.store ?? record.locations ?? record.branches,
   );
@@ -291,8 +342,11 @@ export const toFranchiseSummary = (raw: unknown): FranchiseSummary | null => {
     name,
     company,
     companyAddress,
+    timezone,
     createdAt,
     updatedAt,
+    closedAccount,
+    testAccount,
     outlets,
   };
 };

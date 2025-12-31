@@ -9,12 +9,13 @@ import RowsPerPageControls from '../tickets/RowsPerPageControls';
 import PaginationControlButtons from '../tickets/PaginationControlButtons';
 import SearchKeywordInput from '../tickets/SearchKeywordInput';
 import styles from './merchants.module.css';
-import type { FranchiseSummary } from '@/lib/franchise';
+import type { AccountTypeFilter, FranchiseSummary } from '@/lib/franchise';
 import { PER_PAGE_OPTIONS, type SortDirection, type SortKey } from './constants';
 
 interface MerchantsClientProps {
   franchises: FranchiseSummary[];
   canStartImport: boolean;
+  lastImportDisplay: string;
   totalCount: number;
   totalActiveOutlets: number;
   page: number;
@@ -23,11 +24,13 @@ interface MerchantsClientProps {
   initialQuery?: string;
   sortKey: SortKey;
   sortDirection: SortDirection;
+  accountType: AccountTypeFilter;
   dataUnavailable?: boolean;
   onSearch: (formData: FormData) => void | Promise<void>;
   onPerPageChange: (formData: FormData) => void | Promise<void>;
   onPageChange: (formData: FormData) => void | Promise<void>;
   onSortChange: (formData: FormData) => void | Promise<void>;
+  onFilterChange: (formData: FormData) => void | Promise<void>;
 }
 
 const formatOutletName = (name: string | null): string => {
@@ -40,12 +43,13 @@ const formatOutletId = (id: string | null): string => {
   return cleaned ? `OID ${cleaned}` : 'OID -';
 };
 
-const formatFranchiseName = (name: string | null, fid: string | null): string => {
+const formatFranchiseName = (name: string | null, fid: string | null, closedAccount?: boolean | null): string => {
   const cleaned = (name ?? '').trim();
-  if (cleaned) {
-    return cleaned;
+  const base = cleaned || (fid ? `Franchise ${fid}` : 'Unnamed franchise');
+  if (closedAccount) {
+    return base.toUpperCase().includes('[CLOSED]') ? base : `[CLOSED] ${base}`;
   }
-  return fid ? `Franchise ${fid}` : 'Unnamed franchise';
+  return base;
 };
 
 const normalizeDateInput = (value: string): string =>
@@ -118,17 +122,19 @@ const buildFranchiseLink = (fid: string | null): string | null => {
   return `https://cloud.getslurp.com/batcave/franchise/${encodeURIComponent(cleaned)}`;
 };
 
-const buildExportHref = (format: 'csv' | 'pdf', sort: SortConfig): string => {
+const buildExportHref = (format: 'csv' | 'pdf', sort: SortConfig, accountType: AccountTypeFilter): string => {
   const params = new URLSearchParams();
   params.set('format', format);
   params.set('sort', sort.key);
   params.set('dir', sort.direction);
+  params.set('accountType', accountType);
   return `/api/merchants/export?${params.toString()}`;
 };
 
 export default function MerchantsClient({
   franchises,
   canStartImport,
+  lastImportDisplay,
   totalCount,
   totalActiveOutlets,
   page,
@@ -137,21 +143,26 @@ export default function MerchantsClient({
   initialQuery,
   sortKey,
   sortDirection,
+  accountType,
   dataUnavailable,
   onSearch,
   onPerPageChange,
   onPageChange,
   onSortChange,
+  onFilterChange,
 }: MerchantsClientProps) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   const activeQuery = (initialQuery ?? '').trim();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: sortKey, direction: sortDirection });
+  const [accountTypeValue, setAccountTypeValue] = useState<AccountTypeFilter>(accountType);
   const [importJob, setImportJob] = useState<FranchiseImportJob | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [isStartingImport, setIsStartingImport] = useState(false);
   const [openKeys, setOpenKeys] = useState<string[]>([]);
   const exportMenuRef = useRef<HTMLDetailsElement | null>(null);
+  const filterMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const outletFranchises = useMemo(() => franchises.filter((franchise) => franchise.outlets.length > 0), [franchises]);
 
@@ -218,6 +229,10 @@ export default function MerchantsClient({
   }, [sortKey, sortDirection]);
 
   useEffect(() => {
+    setAccountTypeValue(accountType);
+  }, [accountType]);
+
+  useEffect(() => {
     setOpenKeys([]);
   }, [franchises]);
 
@@ -233,12 +248,14 @@ export default function MerchantsClient({
 
   useEffect(() => {
     const handlePointer = (event: PointerEvent) => {
-      const menu = exportMenuRef.current;
-      if (!menu || !menu.open) {
-        return;
+      const target = event.target instanceof Node ? event.target : null;
+      const exportMenu = exportMenuRef.current;
+      const filterMenu = filterMenuRef.current;
+      if (exportMenu?.open && target && !exportMenu.contains(target)) {
+        exportMenu.open = false;
       }
-      if (event.target instanceof Node && !menu.contains(event.target)) {
-        menu.open = false;
+      if (isFilterOpen && filterMenu && target && !filterMenu.contains(target)) {
+        setIsFilterOpen(false);
       }
     };
 
@@ -246,9 +263,12 @@ export default function MerchantsClient({
       if (event.key !== 'Escape') {
         return;
       }
-      const menu = exportMenuRef.current;
-      if (menu && menu.open) {
-        menu.open = false;
+      const exportMenu = exportMenuRef.current;
+      if (exportMenu?.open) {
+        exportMenu.open = false;
+      }
+      if (isFilterOpen) {
+        setIsFilterOpen(false);
       }
     };
 
@@ -258,7 +278,7 @@ export default function MerchantsClient({
       document.removeEventListener('pointerdown', handlePointer);
       document.removeEventListener('keydown', handleKey);
     };
-  }, []);
+  }, [isFilterOpen]);
 
   const startImport = async () => {
     if (!canStartImport) {
@@ -302,6 +322,24 @@ export default function MerchantsClient({
     });
   };
 
+  const handleAccountTypeSelect = (nextValue: AccountTypeFilter) => {
+    setAccountTypeValue(nextValue);
+    setIsFilterOpen(false);
+    startTransition(() => {
+      const formData = new FormData();
+      formData.set('intent', 'instant');
+      formData.set('accountType', nextValue);
+      void (async () => {
+        try {
+          await onFilterChange(formData);
+        } catch (error) {
+          console.error('Failed to update merchant filters', error);
+        }
+        router.refresh();
+      })();
+    });
+  };
+
   const ariaSort = (key: SortKey) =>
     sortConfig.key === key ? (sortConfig.direction === 'asc' ? 'ascending' : 'descending') : 'none';
 
@@ -310,8 +348,14 @@ export default function MerchantsClient({
       ? Math.min(100, Math.round((importJob.processedCount / importJob.totalCount) * 100))
       : null;
   const showImportModal = isStartingImport || importJob?.status === 'running';
-  const exportCsvHref = buildExportHref('csv', sortConfig);
-  const exportPdfHref = buildExportHref('pdf', sortConfig);
+  const exportCsvHref = buildExportHref('csv', sortConfig, accountTypeValue);
+  const exportPdfHref = buildExportHref('pdf', sortConfig, accountTypeValue);
+  const accountTypeOptions: Array<{ value: AccountTypeFilter; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'live', label: 'Live Accounts' },
+    { value: 'test', label: 'Test Accounts' },
+    { value: 'closed', label: 'Closed Accounts' },
+  ];
 
   return (
     <>
@@ -330,6 +374,39 @@ export default function MerchantsClient({
               debounceMs={400}
               onSearch={onSearch}
             />
+          </div>
+          <div className={styles.exportMenu} ref={filterMenuRef}>
+            <button
+              type="button"
+              className={styles.exportButton}
+              aria-label="Filter merchants"
+              aria-haspopup="menu"
+              aria-expanded={isFilterOpen}
+              onClick={() => setIsFilterOpen((previous) => !previous)}
+            >
+              Filter
+              <ChevronDown size={14} className={styles.filterCaret} aria-hidden="true" />
+            </button>
+            {isFilterOpen ? (
+              <div className={styles.exportList} role="menu">
+                {accountTypeOptions.map((option) => {
+                  const isActive = option.value === accountTypeValue;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      className={`${styles.exportItem} ${isActive ? styles.filterItemActive : ''}`}
+                      onClick={() => handleAccountTypeSelect(option.value)}
+                    >
+                      <span>{option.label}</span>
+                      {isActive ? <span className={styles.filterSelected}>Selected</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
           </div>
           <details className={styles.exportMenu} ref={exportMenuRef}>
             <summary className={styles.exportButton} aria-label="Export merchants">
@@ -394,7 +471,10 @@ export default function MerchantsClient({
 
       <section className={ticketStyles.tableCard}>
         <div className={ticketStyles.tableHeader}>
-          <h2>Franchises</h2>
+          <div className={styles.tableTitle}>
+            <h2>Franchises</h2>
+            <span className={styles.tableTitleMeta}>Last updated: {lastImportDisplay}</span>
+          </div>
           <span>{headerMeta}</span>
         </div>
         <div className={`${ticketStyles.tableWrapper} ${styles.tableWrapper}`}>
@@ -432,7 +512,7 @@ export default function MerchantsClient({
               ) : (
                 sortedFranchises.map((franchise, index) => {
                   const fid = franchise.fid ?? '';
-                  const name = formatFranchiseName(franchise.name, franchise.fid);
+                  const name = formatFranchiseName(franchise.name, franchise.fid, franchise.closedAccount);
                   const key = fid || name ? `${fid}-${name}` : `franchise-${index}`;
                   const franchiseLink = buildFranchiseLink(franchise.fid);
                   const isOpen = openKeys.includes(key);

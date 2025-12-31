@@ -4,6 +4,7 @@ import styles from '../tickets/tickets.module.css';
 import MerchantsClient from './MerchantsClient';
 import {
   applyMerchantsSearchAction,
+  changeMerchantsAccountFiltersAction,
   changeMerchantsPageAction,
   changeMerchantsPerPageAction,
   changeMerchantsSortAction,
@@ -12,11 +13,33 @@ import { DEFAULT_PER_PAGE, DEFAULT_SORT_DIRECTION, DEFAULT_SORT_KEY } from './co
 import { parseMerchantsViewState } from './view-state';
 import { getAuthenticatedUser } from '@/lib/auth-user';
 import { canAccessMerchantsPages } from '@/lib/branding';
-import { getFranchiseMetrics, listCachedFranchises, searchCachedFranchises } from '@/lib/franchise-cache';
+import {
+  getFranchiseMetrics,
+  getLatestCompletedFranchiseImport,
+  listCachedFranchises,
+  searchCachedFranchises,
+} from '@/lib/franchise-cache';
 import type { FranchiseSummary } from '@/lib/franchise';
 import { MERCHANTS_VIEW_COOKIE } from '@/lib/preferences';
 
 export const dynamic = 'force-dynamic';
+
+const IMPORT_TIMEZONE = 'Asia/Kuala_Lumpur';
+
+const formatImportTimestamp = (value: string | null): string => {
+  if (!value) {
+    return 'Not imported yet';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Not imported yet';
+  }
+  return new Intl.DateTimeFormat('en-MY', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: IMPORT_TIMEZONE,
+  }).format(parsed);
+};
 
 export default async function MerchantsPage() {
   const authUser = await getAuthenticatedUser();
@@ -33,6 +56,7 @@ export default async function MerchantsPage() {
   const perPage = viewState.perPage ?? DEFAULT_PER_PAGE;
   const sortKey = viewState.sortKey ?? DEFAULT_SORT_KEY;
   const sortDirection = viewState.sortDirection ?? DEFAULT_SORT_DIRECTION;
+  const accountType = viewState.accountType ?? 'all';
   const hasQuery = initialQuery.length > 0;
 
   let dataLoadFailed = false;
@@ -41,13 +65,18 @@ export default async function MerchantsPage() {
   let currentPage = page;
   let totalCount = 0;
   let totalActiveOutlets = 0;
+  let lastImportDisplay = 'Not imported yet';
 
   try {
     if (hasQuery) {
-      const matchingFranchises = await searchCachedFranchises(initialQuery, {
-        key: sortKey,
-        direction: sortDirection,
-      });
+      const matchingFranchises = await searchCachedFranchises(
+        initialQuery,
+        {
+          key: sortKey,
+          direction: sortDirection,
+        },
+        { accountType },
+      );
       totalCount = matchingFranchises.length;
       totalPages = Math.max(1, Math.ceil(totalCount / perPage));
       currentPage = Math.min(page, totalPages);
@@ -55,15 +84,25 @@ export default async function MerchantsPage() {
       const endIndex = totalCount === 0 ? 0 : startIndex + perPage;
       franchises = totalCount === 0 ? [] : matchingFranchises.slice(startIndex, endIndex);
     } else {
-      const pageResponse = await listCachedFranchises(page, perPage, { key: sortKey, direction: sortDirection });
+      const pageResponse = await listCachedFranchises(
+        page,
+        perPage,
+        { key: sortKey, direction: sortDirection },
+        { accountType },
+      );
       totalCount = pageResponse.totalCount;
       totalPages = Math.max(1, Math.ceil(totalCount / perPage));
       currentPage = Math.min(page, totalPages);
       if (currentPage !== page) {
-        const fallbackResponse = await listCachedFranchises(currentPage, perPage, {
-          key: sortKey,
-          direction: sortDirection,
-        });
+        const fallbackResponse = await listCachedFranchises(
+          currentPage,
+          perPage,
+          {
+            key: sortKey,
+            direction: sortDirection,
+          },
+          { accountType },
+        );
         franchises = fallbackResponse.franchises;
         totalCount = fallbackResponse.totalCount;
       } else {
@@ -80,6 +119,14 @@ export default async function MerchantsPage() {
     totalActiveOutlets = metrics.totalActiveOutlets;
   } catch (error) {
     console.error('Failed to load franchise metrics', error);
+  }
+
+  try {
+    const latestImport = await getLatestCompletedFranchiseImport();
+    const importTimestamp = latestImport?.finishedAt ?? latestImport?.startedAt ?? null;
+    lastImportDisplay = formatImportTimestamp(importTimestamp);
+  } catch (error) {
+    console.error('Failed to load latest franchise import', error);
   }
 
   return (
@@ -99,6 +146,7 @@ export default async function MerchantsPage() {
       <MerchantsClient
         franchises={franchises}
         canStartImport={canStartImport}
+        lastImportDisplay={lastImportDisplay}
         page={currentPage}
         totalPages={totalPages}
         totalCount={totalCount}
@@ -107,11 +155,13 @@ export default async function MerchantsPage() {
         initialQuery={initialQuery}
         sortKey={sortKey}
         sortDirection={sortDirection}
+        accountType={accountType}
         dataUnavailable={dataLoadFailed}
         onSearch={applyMerchantsSearchAction}
         onPerPageChange={changeMerchantsPerPageAction}
         onPageChange={changeMerchantsPageAction}
         onSortChange={changeMerchantsSortAction}
+        onFilterChange={changeMerchantsAccountFiltersAction}
       />
     </div>
   );
