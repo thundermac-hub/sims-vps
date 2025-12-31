@@ -232,6 +232,7 @@ export default async function UsersPage() {
                           adminRoleOptions={ADMIN_ROLE_OPTIONS}
                           isSuperAdmin={authUser.isSuperAdmin}
                           fixedDepartment={authUser.department ?? null}
+                          currentUserId={authUser.id}
                         />
                       </td>
                     </tr>
