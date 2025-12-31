@@ -432,7 +432,7 @@ export default function MerchantsClient({
               onClick={startImport}
               disabled={isStartingImport || importJob?.status === 'running'}
             >
-              {importJob?.status === 'running' ? 'Importing...' : 'Import Latest Data'}
+              {importJob?.status === 'running' ? 'Importing...' : 'Manual Import'}
             </button>
           ) : null}
         </div>

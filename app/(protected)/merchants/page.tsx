@@ -136,8 +136,8 @@ export default async function MerchantsPage() {
           <div>
             <h1 className={styles.heroTitle}>Merchant Directory</h1>
             <p className={styles.heroSubtitle}>
-              Browse cached franchise data synced nightly at 12:15 AM. Only franchises with outlets are listed (25 per
-              page), with the most recent entries shown first.
+              Search franchises, outlets, and companies from the latest nightly sync, with details available for each
+              franchise.
             </p>
           </div>
         </div>
