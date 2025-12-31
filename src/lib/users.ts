@@ -251,7 +251,7 @@ export async function createUser(input: CreateUserInput): Promise<ManagedUser> {
   const { data, error } = await supabase
     .from<UserRow>('users')
     .insert(payload)
-    .select('id, email, name, department, role, created_at')
+    .select('id, email, name, department, role, is_active, created_at')
     .single();
 
   if (error) {

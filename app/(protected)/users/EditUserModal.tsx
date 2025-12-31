@@ -15,6 +15,7 @@ interface EditUserModalProps {
   adminRoleOptions: readonly string[];
   isSuperAdmin: boolean;
   fixedDepartment: string | null;
+  currentUserId: number | null;
 }
 
 export default function EditUserModal({
@@ -27,8 +28,10 @@ export default function EditUserModal({
   adminRoleOptions,
   isSuperAdmin,
   fixedDepartment,
+  currentUserId,
 }: EditUserModalProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const isSelf = currentUserId != null && currentUserId === user.id;
   const isInactive = !user.is_active;
   const disableStatusAction = !isInactive && statusActionDisabled;
   const statusCopy = isInactive

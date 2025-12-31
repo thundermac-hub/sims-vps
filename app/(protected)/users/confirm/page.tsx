@@ -75,9 +75,7 @@ export default async function ConfirmUserStatusPage({
 
   const isActiveTarget = targetStatus === 'active';
   const actionTitle = isActiveTarget ? 'Reactivate user access' : 'Set user as inactive';
-  const actionCopy = isActiveTarget
-    ? 'This will restore login access and re-enable their availability in assignment lists.'
-    : 'This will immediately block login access and remove them from assignment lists.';
+  const actionCopy = isActiveTarget ? 'This will restore login access and assignment availability.' : null;
   const confirmLabel = isActiveTarget ? 'Reactivate User' : 'Set as Inactive';
   const statusActionDisabled = !isActiveTarget && authUser.id === targetUser.id;
 
@@ -87,7 +85,7 @@ export default async function ConfirmUserStatusPage({
         <div className={styles.heroTop}>
           <div>
             <h1 className={styles.heroTitle}>{actionTitle}</h1>
-            <p className={styles.heroSubtitle}>{actionCopy}</p>
+            {actionCopy ? <p className={styles.heroSubtitle}>{actionCopy}</p> : null}
           </div>
           <div className={styles.heroActions}>
             <Link className={styles.heroActionButton} href="/users">
@@ -103,9 +101,7 @@ export default async function ConfirmUserStatusPage({
           <span>{targetUser.is_active ? 'Active' : 'Inactive'}</span>
         </div>
         <div className={styles.confirmBody}>
-          <p className={styles.confirmCopy}>
-            Please confirm you want to update this user&apos;s access status.
-          </p>
+          <p className={styles.confirmCopy}>Please confirm you want to update this user&apos;s access status.</p>
           <div className={styles.confirmGrid}>
             <div className={styles.confirmField}>
               <span className={styles.confirmLabel}>Name</span>
